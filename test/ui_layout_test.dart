@@ -20,13 +20,13 @@ Future<void> _pumpHome(WidgetTester tester, Size size) async {
 void main() {
   testWidgets('home renders on tall phone', (tester) async {
     await _pumpHome(tester, const Size(412, 915));
-    expect(find.text('PLAY'), findsOneWidget);
+    expect(find.text('CONTINUE'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('home renders on compact phone', (tester) async {
     await _pumpHome(tester, const Size(360, 720));
-    expect(find.text('PLAY'), findsOneWidget);
+    expect(find.text('CONTINUE'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
