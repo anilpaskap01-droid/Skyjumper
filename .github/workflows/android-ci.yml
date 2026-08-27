@@ -8,7 +8,7 @@ on:
 jobs:
   verify-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,6 +24,21 @@ jobs:
           flutter create --platforms=android --org com.hantro --project-name skyjumper .
           rm -f test/widget_test.dart
 
+      - name: Enable skin CDN access only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('android/app/src/main/AndroidManifest.xml')
+          text = path.read_text()
+          marker = '<manifest xmlns:android="http://schemas.android.com/apk/res/android">'
+          permission = '    <uses-permission android:name="android.permission.INTERNET" />'
+          if permission not in text:
+              if marker not in text:
+                  raise SystemExit('Android manifest marker not found')
+              text = text.replace(marker, marker + '\n' + permission, 1)
+          path.write_text(text)
+          PY
+
       - name: Resolve dependencies
         run: flutter pub get
 
@@ -31,14 +46,14 @@ jobs:
         run: flutter analyze
 
       - name: Test
-        run: flutter test test/gameplay_engine_test.dart
+        run: flutter test
 
-      - name: Build debug APK
-        run: flutter build apk --debug
+      - name: Build release APK
+        run: flutter build apk --release
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: skyjumper-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: skyjumper-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
