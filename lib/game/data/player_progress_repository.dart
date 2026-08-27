@@ -13,8 +13,6 @@ class PlayerProgressRepository {
   PlayerProgressRepository._(
     this._prefs, {
     required this.bestScore,
-    required this.gold,
-    required this.gems,
     required this.seasonStars,
     required this.dailyStreak,
     required this.lastDailyClaimDay,
@@ -22,13 +20,12 @@ class PlayerProgressRepository {
     required this.vibrationEnabled,
     required this.cameraShakeEnabled,
     required this.reducedEffects,
-    required this.ownedSkinIds,
     required this.equippedSkinId,
   });
 
+  static const int unlimitedCurrency = 999999999;
+
   static const _bestScoreKey = 'best_score';
-  static const _goldKey = 'gold';
-  static const _gemsKey = 'gems';
   static const _seasonStarsKey = 'season_stars';
   static const _dailyStreakKey = 'daily_streak';
   static const _lastDailyClaimDayKey = 'last_daily_claim_day';
@@ -36,7 +33,6 @@ class PlayerProgressRepository {
   static const _vibrationEnabledKey = 'vibration_enabled';
   static const _cameraShakeEnabledKey = 'camera_shake_enabled';
   static const _reducedEffectsKey = 'reduced_effects';
-  static const _ownedSkinsKey = 'owned_skin_ids';
   static const _equippedSkinKey = 'equipped_skin_id';
 
   static const List<int> dailyGoldRewards = <int>[50, 100, 150, 200, 250, 350, 500];
@@ -45,8 +41,6 @@ class PlayerProgressRepository {
   final SharedPreferences _prefs;
 
   int bestScore;
-  int gold;
-  int gems;
   int seasonStars;
   int dailyStreak;
   String? lastDailyClaimDay;
@@ -54,27 +48,27 @@ class PlayerProgressRepository {
   bool vibrationEnabled;
   bool cameraShakeEnabled;
   bool reducedEffects;
-  final Set<String> ownedSkinIds;
   String equippedSkinId;
+
+  /// This offline build intentionally has infinite soft and premium currency.
+  int get gold => unlimitedCurrency;
+  int get gems => unlimitedCurrency;
+
+  /// Every original APK skin is unlocked in this build.
+  Set<String> get ownedSkinIds => kSkinCatalog.map((skin) => skin.id).toSet();
 
   SkinDefinition get equippedSkin => skinById(equippedSkinId);
 
   static Future<PlayerProgressRepository> load() async {
     final prefs = await SharedPreferences.getInstance();
-    final owned = <String>{
-      ...defaultOwnedSkinIds,
-      ...?prefs.getStringList(_ownedSkinsKey),
-    };
-    owned.removeWhere((id) => !kSkinCatalog.any((skin) => skin.id == id));
-
     final savedEquipped = prefs.getString(_equippedSkinKey) ?? 'classic';
-    final equipped = owned.contains(savedEquipped) ? savedEquipped : 'classic';
+    final equipped = kSkinCatalog.any((skin) => skin.id == savedEquipped)
+        ? savedEquipped
+        : 'classic';
 
     return PlayerProgressRepository._(
       prefs,
       bestScore: _safeNonNegativeInt(prefs.get(_bestScoreKey)),
-      gold: _safeNonNegativeInt(prefs.get(_goldKey)),
-      gems: _safeNonNegativeInt(prefs.get(_gemsKey)),
       seasonStars: _safeNonNegativeInt(prefs.get(_seasonStarsKey)),
       dailyStreak: _safeNonNegativeInt(prefs.get(_dailyStreakKey)).clamp(0, 7).toInt(),
       lastDailyClaimDay: prefs.getString(_lastDailyClaimDayKey),
@@ -82,44 +76,27 @@ class PlayerProgressRepository {
       vibrationEnabled: prefs.getBool(_vibrationEnabledKey) ?? true,
       cameraShakeEnabled: prefs.getBool(_cameraShakeEnabledKey) ?? true,
       reducedEffects: prefs.getBool(_reducedEffectsKey) ?? false,
-      ownedSkinIds: owned,
       equippedSkinId: equipped,
     );
   }
 
-  bool ownsSkin(String id) => ownedSkinIds.contains(id);
+  bool ownsSkin(String id) => kSkinCatalog.any((skin) => skin.id == id);
 
   Future<void> commitRun({required int score, required int runGold}) async {
     if (score > bestScore) {
       bestScore = score;
       await _prefs.setInt(_bestScoreKey, bestScore);
     }
-    if (runGold > 0) {
-      gold += runGold;
-      await _prefs.setInt(_goldKey, gold);
-    }
+    // Currency is infinite, therefore earned runGold does not need persistence.
   }
 
   Future<bool> purchaseSkin(SkinDefinition skin) async {
-    if (ownsSkin(skin.id)) return true;
-    if (skin.price <= 0) {
-      ownedSkinIds.add(skin.id);
-      await _saveOwnedSkins();
-      return true;
-    }
-    if (gold < skin.price) return false;
-
-    gold -= skin.price;
-    ownedSkinIds.add(skin.id);
-    await Future.wait(<Future<bool>>[
-      _prefs.setInt(_goldKey, gold),
-      _saveOwnedSkins(),
-    ]);
-    return true;
+    // All skins are already unlocked and purchases never reduce currency.
+    return ownsSkin(skin.id);
   }
 
   Future<bool> equipSkin(String id) async {
-    if (!ownsSkin(id) || !kSkinCatalog.any((skin) => skin.id == id)) return false;
+    if (!ownsSkin(id)) return false;
     equippedSkinId = id;
     await _prefs.setString(_equippedSkinKey, id);
     return true;
@@ -145,13 +122,9 @@ class PlayerProgressRepository {
     final index = (dailyStreak - 1).clamp(0, 6).toInt();
     final rewardGold = dailyGoldRewards[index];
     final rewardGems = dailyGemRewards[index];
-    gold += rewardGold;
-    gems += rewardGems;
     lastDailyClaimDay = today;
 
     await Future.wait(<Future<bool>>[
-      _prefs.setInt(_goldKey, gold),
-      _prefs.setInt(_gemsKey, gems),
       _prefs.setInt(_dailyStreakKey, dailyStreak),
       _prefs.setString(_lastDailyClaimDayKey, today),
     ]);
@@ -177,11 +150,6 @@ class PlayerProgressRepository {
   Future<void> setReducedEffects(bool enabled) async {
     reducedEffects = enabled;
     await _prefs.setBool(_reducedEffectsKey, enabled);
-  }
-
-  Future<bool> _saveOwnedSkins() async {
-    final ids = ownedSkinIds.toList()..sort();
-    return _prefs.setStringList(_ownedSkinsKey, ids);
   }
 
   static String _dayKey(DateTime date) {
