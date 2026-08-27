@@ -78,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.72),
+                    color: Colors.white.withValues(alpha: 0.72),
                     borderRadius: BorderRadius.circular(24),
                   ),
                   child: Text(
@@ -138,7 +138,7 @@ class _StatChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.76),
+        color: Colors.white.withValues(alpha: 0.76),
         borderRadius: BorderRadius.circular(22),
       ),
       child: Row(
