@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:skyjumper/game/data/custom_photo_skin_assets.dart';
 import 'package:skyjumper/game/data/skin_catalog.dart';
 
-/// Renders only pixels extracted from the original SkyJumper APK supplied by
-/// the user. The atlas contains the exact 37 skins present in that APK, in the
-/// same order as [kSkinCatalog]. No generated/procedural fallback is used.
 class SkinAvatar extends StatelessWidget {
   const SkinAvatar({
     super.key,
@@ -69,6 +67,33 @@ class SkinAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final customBytes = customPhotoSkinBytes(skin.id, jumping: _jumping);
+    if (customBytes != null) {
+      return FittedBox(
+        fit: fit,
+        alignment: Alignment.center,
+        child: SizedBox(
+          width: 120,
+          height: 160,
+          child: Transform.translate(
+            offset: Offset(0, _jumping ? -4 : 0),
+            child: Transform.scale(
+              scaleX: _jumping ? 0.97 : 1,
+              scaleY: _jumping ? 1.03 : 1,
+              child: Image.memory(
+                customBytes,
+                width: 120,
+                height: 160,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.high,
+                gaplessPlayback: true,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     final column = _skinOrder.indexOf(skin.id);
     if (column < 0) return const SizedBox.shrink();
     final row = _jumping ? 1 : 0;
