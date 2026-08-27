@@ -13,17 +13,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Restore custom photo skins
+        run: |
+          set -euo pipefail
+          mkdir -p assets/custom_skins
+          base64 -d assets/custom_skin_b64/custom_slot_29_front_idle.b64 > assets/custom_skins/custom_slot_29.webp
+          base64 -d assets/custom_skin_b64/custom_slot_30_front_idle.b64 > assets/custom_skins/custom_slot_30.webp
+          test -s assets/custom_skins/custom_slot_29.webp
+          test -s assets/custom_skins/custom_slot_30.webp
+          file assets/custom_skins/custom_slot_29.webp | grep -qi webp
+          file assets/custom_skins/custom_slot_30.webp | grep -qi webp
+
       - name: Verify embedded original APK skin atlas
         run: |
           set -euo pipefail
           test -s assets/original_skin_atlas.webp
           file assets/original_skin_atlas.webp | grep -qi webp
           if grep -RniE 'CustomPaint\(|CustomPainter' lib/widgets/skin_avatar.dart; then
-            echo 'Procedural skin renderer found; only original APK pixels are allowed.'
+            echo 'Procedural skin renderer found; only bundled skin pixels are allowed.'
             exit 1
           fi
           if grep -RniE 'Image\.network|NetworkImage' lib/widgets/skin_avatar.dart lib/features/shop; then
-            echo 'Network skin renderer found; skin art must be bundled from the original APK.'
+            echo 'Network skin renderer found; skin art must be bundled locally.'
             exit 1
           fi
 
@@ -60,6 +71,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: skyjumper-real-skins-visible-release
+          name: skyjumper-phone-hotwheels-release
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
