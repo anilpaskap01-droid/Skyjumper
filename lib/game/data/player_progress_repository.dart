@@ -10,9 +10,9 @@ class PlayerProgressRepository {
     required this.vibrationEnabled,
     required this.cameraShakeEnabled,
     required this.reducedEffects,
-    required Set<String> ownedSkinIds,
+    required this.ownedSkinIds,
     required this.equippedSkinId,
-  }) : ownedSkinIds = ownedSkinIds;
+  });
 
   static const _bestScoreKey = 'best_score';
   static const _goldKey = 'gold';
