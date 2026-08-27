@@ -15,93 +15,123 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final progress = widget.progress;
     return Scaffold(
-      backgroundColor: const Color(0xFF080A1A),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'AYARLAR',
-          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.3),
-        ),
-      ),
-      body: DecoratedBox(
-        decoration: const BoxDecoration(
-          gradient: RadialGradient(
-            center: Alignment(0, -0.7),
-            radius: 1.1,
-            colors: [Color(0xFF202C66), Color(0xFF080A1A)],
-          ),
-        ),
-        child: SafeArea(
-          top: false,
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 28),
-            children: [
-              _SettingTile(
-                icon: Icons.volume_up_rounded,
-                title: 'SES VE MÜZİK',
-                subtitle: 'Oyun sesleri ve sistem geri bildirimi',
-                value: progress.soundEnabled,
-                onChanged: (value) async {
-                  await progress.setSoundEnabled(value);
-                  if (mounted) setState(() {});
-                },
-              ),
-              _SettingTile(
-                icon: Icons.vibration_rounded,
-                title: 'TİTREŞİM',
-                subtitle: 'Coin ve inişlerde dokunsal geri bildirim',
-                value: progress.vibrationEnabled,
-                onChanged: (value) async {
-                  await progress.setVibrationEnabled(value);
-                  if (mounted) setState(() {});
-                },
-              ),
-              _SettingTile(
-                icon: Icons.videocam_rounded,
-                title: 'DARBE SARSINTISI',
-                subtitle: 'Sert inişlerde kısa kamera tepkisi',
-                value: progress.cameraShakeEnabled,
-                onChanged: (value) async {
-                  await progress.setCameraShakeEnabled(value);
-                  if (mounted) setState(() {});
-                },
-              ),
-              _SettingTile(
-                icon: Icons.auto_awesome_rounded,
-                title: 'AZALTILMIŞ EFEKT',
-                subtitle: 'Daha sade görsel efekt ve daha az hareket',
-                value: progress.reducedEffects,
-                onChanged: (value) async {
-                  await progress.setReducedEffects(value);
-                  if (mounted) setState(() {});
-                },
-              ),
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.white12),
+      backgroundColor: const Color(0xFF040A17),
+      body: Stack(
+        children: <Widget>[
+          const Positioned.fill(child: CustomPaint(painter: _CircuitBackgroundPainter())),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 18, 16, 26),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 460),
+                  padding: const EdgeInsets.fromLTRB(14, 20, 14, 16),
+                  decoration: BoxDecoration(
+                    color: const Color(0xEE090C22),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFFF35CA), width: 1.5),
+                    boxShadow: const <BoxShadow>[
+                      BoxShadow(color: Color(0x66FF2DC7), blurRadius: 22),
+                    ],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      const Text(
+                        'AYARLAR',
+                        style: TextStyle(
+                          color: Color(0xFFFF49D0),
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 2,
+                          shadows: <Shadow>[Shadow(color: Color(0xFFFF2AC7), blurRadius: 15)],
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      const Text(
+                        'CİHAZA GÖRE OYUN HİSSİNİ AYARLA',
+                        style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: .8),
+                      ),
+                      const SizedBox(height: 20),
+                      _NeonSetting(
+                        color: const Color(0xFF37D9FF),
+                        icon: Icons.volume_up_rounded,
+                        title: 'SES VE MÜZİK',
+                        subtitle: 'Oyun ve arayüz sesleri',
+                        value: progress.soundEnabled,
+                        onChanged: (value) async {
+                          await progress.setSoundEnabled(value);
+                          if (mounted) setState(() {});
+                        },
+                      ),
+                      _NeonSetting(
+                        color: const Color(0xFF55F68B),
+                        icon: Icons.vibration_rounded,
+                        title: 'TİTREŞİM',
+                        subtitle: 'İniş ve coinlerde dokunsal tepki',
+                        value: progress.vibrationEnabled,
+                        onChanged: (value) async {
+                          await progress.setVibrationEnabled(value);
+                          if (mounted) setState(() {});
+                        },
+                      ),
+                      _NeonSetting(
+                        color: const Color(0xFFFFB843),
+                        icon: Icons.videocam_rounded,
+                        title: 'DARBE SARSINTISI',
+                        subtitle: 'İnişlerde kısa kamera tepkisi',
+                        value: progress.cameraShakeEnabled,
+                        onChanged: (value) async {
+                          await progress.setCameraShakeEnabled(value);
+                          if (mounted) setState(() {});
+                        },
+                      ),
+                      _NeonSetting(
+                        color: const Color(0xFFFF4EC7),
+                        icon: Icons.auto_awesome_rounded,
+                        title: 'AZALTILMIŞ EFEKT',
+                        subtitle: 'Daha az hareket ve parçacık',
+                        value: progress.reducedEffects,
+                        onChanged: (value) async {
+                          await progress.setReducedEffects(value);
+                          if (mounted) setState(() {});
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.of(context).pop(),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF5DE8FF),
+                            side: const BorderSide(color: Color(0xFF49DDF7), width: 1.5),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          ),
+                          icon: const Icon(Icons.arrow_back_rounded),
+                          label: const Text('MENÜYE DÖN', style: TextStyle(fontWeight: FontWeight.w900)),
+                        ),
+                      ),
+                      const SizedBox(height: 9),
+                      const Text(
+                        'Değişiklikler anında kaydedilir.',
+                        style: TextStyle(color: Colors.white38, fontSize: 10),
+                      ),
+                    ],
+                  ),
                 ),
-                child: const Text(
-                  'Tüm ayarlar ve oyun ilerlemesi yalnızca cihazda saklanır. '
-                  'Firebase, reklam SDK’sı veya uygulama içi satın alma kullanılmaz.',
-                  style: TextStyle(color: Colors.white60, height: 1.35),
-                ),
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-class _SettingTile extends StatelessWidget {
-  const _SettingTile({
+class _NeonSetting extends StatelessWidget {
+  const _NeonSetting({
+    required this.color,
     required this.icon,
     required this.title,
     required this.subtitle,
@@ -109,6 +139,7 @@ class _SettingTile extends StatelessWidget {
     required this.onChanged,
   });
 
+  final Color color;
   final IconData icon;
   final String title;
   final String subtitle;
@@ -118,43 +149,58 @@ class _SettingTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      margin: const EdgeInsets.only(bottom: 11),
       decoration: BoxDecoration(
-        color: const Color(0xFF141832).withValues(alpha: 0.92),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: value
-              ? const Color(0xFF6E7DFF).withValues(alpha: 0.65)
-              : Colors.white12,
-        ),
+        color: const Color(0xFF0C1328),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: .86), width: 1.25),
+        boxShadow: <BoxShadow>[BoxShadow(color: color.withValues(alpha: .16), blurRadius: 10)],
       ),
       child: SwitchListTile.adaptive(
-        contentPadding: EdgeInsets.zero,
-        secondary: Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: const Color(0xFF6274FF).withValues(alpha: 0.18),
-          ),
-          child: Icon(icon, color: const Color(0xFF9DA8FF)),
-        ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0.4,
-          ),
-        ),
-        subtitle: Text(
-          subtitle,
-          style: const TextStyle(color: Colors.white54),
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         value: value,
         onChanged: onChanged,
+        activeColor: color,
+        secondary: Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: .13),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color.withValues(alpha: .45)),
+          ),
+          child: Icon(icon, color: color),
+        ),
+        title: Text(title, style: TextStyle(color: color, fontWeight: FontWeight.w900, letterSpacing: .7)),
+        subtitle: Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 11)),
       ),
     );
   }
+}
+
+class _CircuitBackgroundPainter extends CustomPainter {
+  const _CircuitBackgroundPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF040A17));
+    final grid = Paint()
+      ..color = const Color(0xFF143A52).withValues(alpha: .32)
+      ..strokeWidth = 1;
+    for (double x = 8; x < size.width; x += 26) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), grid);
+    }
+    for (double y = 8; y < size.height; y += 26) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
+    }
+    final nodes = Paint()..color = const Color(0xFF33CFF2).withValues(alpha: .4);
+    for (double x = 21; x < size.width; x += 78) {
+      for (double y = 18; y < size.height; y += 78) {
+        canvas.drawCircle(Offset(x, y), 1.8, nodes);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
