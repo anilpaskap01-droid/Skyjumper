@@ -15,6 +15,9 @@ class SkinAvatar extends StatelessWidget {
   final int frame;
   final BoxFit fit;
 
+  static const int _columns = 8;
+  static const int _rows = 5;
+
   static const List<String> _skinOrder = <String>[
     'classic', 'glacier', 'magma', 'neon', 'aurora', 'blaze', 'void',
     'custom_slot_01', 'custom_slot_02', 'custom_slot_03', 'custom_slot_04',
@@ -27,51 +30,61 @@ class SkinAvatar extends StatelessWidget {
     'custom_slot_29', 'custom_slot_30',
   ];
 
-  static const double _cellWidth = 24;
-  static const double _cellHeight = 32;
-  static const double _atlasWidth = _cellWidth * 37;
-  static const double _atlasHeight = _cellHeight * 2;
-
-  int get _column {
-    final index = _skinOrder.indexOf(skin.id);
-    return index < 0 ? 0 : index;
-  }
-
-  int get _row {
+  bool get _jumping {
     final normalized = frame % 16;
-    return normalized >= 3 && normalized <= 12 ? 1 : 0;
+    return normalized >= 3 && normalized <= 12;
   }
+
+  String get _atlasAsset => _jumping
+      ? 'assets/original_skins/front_jump_atlas.webp'
+      : 'assets/original_skins/front_idle_atlas.webp';
 
   @override
   Widget build(BuildContext context) {
-    return FittedBox(
-      fit: fit,
-      child: SizedBox(
-        width: _cellWidth,
-        height: _cellHeight,
-        child: ClipRect(
-          child: Stack(
-            clipBehavior: Clip.hardEdge,
-            children: <Widget>[
-              Positioned(
-                left: -_column * _cellWidth,
-                top: -_row * _cellHeight,
-                width: _atlasWidth,
-                height: _atlasHeight,
-                child: Image.asset(
-                  'assets/original_skin_atlas.webp',
-                  width: _atlasWidth,
-                  height: _atlasHeight,
-                  fit: BoxFit.fill,
-                  filterQuality: FilterQuality.none,
-                  gaplessPlayback: true,
-                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+    final index = _skinOrder.indexOf(skin.id);
+    if (index < 0) return const SizedBox.shrink();
+
+    final column = index % _columns;
+    final row = index ~/ _columns;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth =
+            constraints.maxWidth.isFinite ? constraints.maxWidth : 80.0;
+        final availableHeight =
+            constraints.maxHeight.isFinite ? constraints.maxHeight : 80.0;
+        final size = availableWidth < availableHeight
+            ? availableWidth
+            : availableHeight;
+
+        return Center(
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: ClipRect(
+              child: OverflowBox(
+                alignment: Alignment.topLeft,
+                minWidth: size * _columns,
+                maxWidth: size * _columns,
+                minHeight: size * _rows,
+                maxHeight: size * _rows,
+                child: Transform.translate(
+                  offset: Offset(-column * size, -row * size),
+                  child: Image.asset(
+                    _atlasAsset,
+                    width: size * _columns,
+                    height: size * _rows,
+                    fit: BoxFit.fill,
+                    filterQuality: FilterQuality.high,
+                    gaplessPlayback: true,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
                 ),
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
