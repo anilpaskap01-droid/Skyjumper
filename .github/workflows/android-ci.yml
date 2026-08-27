@@ -8,48 +8,55 @@ on:
 jobs:
   verify-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Restore exact original APK skin art
+      - name: Restore exact original Google Play skin art
         run: |
           set -euo pipefail
           rm -rf assets/original_skins
-          mkdir -p assets/original_skins /tmp/skyjumper-apk
-          curl -L --fail --retry 3 --retry-delay 2 \
-            -A 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36' \
-            'https://d.apkpure.com/b/APK/com.hantro.skyjumper?version=latest' \
-            -o /tmp/skyjumper-apk/download.bin
+          mkdir -p assets/original_skins /tmp/skyjumper-play
+          python3 -m pip install --disable-pip-version-check --quiet goopdl
+          goopdl download com.hantro.skyjumper \
+            --version 1.2.4 \
+            --arch arm64 \
+            --no-splits \
+            --no-extras \
+            --output /tmp/skyjumper-play
           python3 - <<'PY'
-          import io
+          import glob
           import os
           import shutil
           import zipfile
 
-          source = '/tmp/skyjumper-apk/download.bin'
           expected = ['classic', 'glacier', 'magma', 'neon', 'aurora', 'blaze', 'void'] + [f'custom_slot_{i:02d}' for i in range(1, 31)]
           prefix = 'assets/flutter_assets/assets/skins/'
+          candidates = glob.glob('/tmp/skyjumper-play/*.apk')
+          if not candidates:
+              raise SystemExit('Google Play download completed without an APK file')
 
-          def open_apk(path):
-              outer = zipfile.ZipFile(path)
-              if any(n.startswith(prefix) for n in outer.namelist()):
-                  return outer
-              inner_apks = [n for n in outer.namelist() if n.lower().endswith('.apk')]
-              if not inner_apks:
-                  raise SystemExit('Downloaded package is neither the SkyJumper APK nor an XAPK containing an APK')
-              data = outer.read(inner_apks[0])
-              outer.close()
-              return zipfile.ZipFile(io.BytesIO(data))
+          source = None
+          for candidate in candidates:
+              try:
+                  with zipfile.ZipFile(candidate) as apk:
+                      if any(n.startswith(prefix) for n in apk.namelist()):
+                          source = candidate
+                          break
+              except zipfile.BadZipFile:
+                  pass
+          if source is None:
+              raise SystemExit('No downloaded Google Play APK contained SkyJumper Flutter skin assets')
 
-          with open_apk(source) as apk:
+          with zipfile.ZipFile(source) as apk:
+              names = set(apk.namelist())
               missing = []
               written = 0
               for skin_id in expected:
                   for pose in ('front_idle', 'front_jump'):
                       src = f'{prefix}{skin_id}/{pose}.png'
-                      if src not in apk.namelist():
+                      if src not in names:
                           missing.append(src)
                           continue
                       dst = f'assets/original_skins/{skin_id}_{pose}.png'
@@ -57,11 +64,11 @@ jobs:
                           shutil.copyfileobj(inp, out)
                       written += 1
               if missing:
-                  raise SystemExit('Original APK is missing required real skin assets:\n' + '\n'.join(missing))
+                  raise SystemExit('Published SkyJumper APK is missing required original skin assets:\n' + '\n'.join(missing))
               if written != 74:
                   raise SystemExit(f'Expected 74 original skin images, wrote {written}')
 
-          print('Restored 74 exact original SkyJumper skin pose PNGs.')
+          print(f'Restored 74 exact skin pose PNGs from {os.path.basename(source)}.')
           PY
 
       - name: Set up Flutter
@@ -85,7 +92,7 @@ jobs:
             exit 1
           fi
 
-      - name: Verify no procedural skin renderer remains
+      - name: Verify original-only skin renderer
         run: |
           if grep -RniE 'CustomPaint\(|CustomPainter' lib/widgets/skin_avatar.dart; then
             echo 'Procedural skin renderer found; only original APK image assets are allowed.'
