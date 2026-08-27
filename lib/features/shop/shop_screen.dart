@@ -4,16 +4,27 @@ import 'package:skyjumper/game/data/skin_catalog.dart';
 import 'package:skyjumper/widgets/skin_avatar.dart';
 
 class ShopScreen extends StatefulWidget {
-  const ShopScreen({super.key, required this.progress});
+  const ShopScreen({
+    super.key,
+    required this.progress,
+    this.initialInventory = false,
+  });
 
   final PlayerProgressRepository progress;
+  final bool initialInventory;
 
   @override
   State<ShopScreen> createState() => _ShopScreenState();
 }
 
 class _ShopScreenState extends State<ShopScreen> {
-  bool _ownedOnly = false;
+  late bool _ownedOnly;
+
+  @override
+  void initState() {
+    super.initState();
+    _ownedOnly = widget.initialInventory;
+  }
 
   Future<void> _handleSkin(SkinDefinition skin) async {
     final progress = widget.progress;
@@ -32,11 +43,7 @@ class _ShopScreenState extends State<ShopScreen> {
     }
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Yeterli GOLD yok. ${skin.name} için ${skin.price} GOLD gerekiyor.',
-        ),
-      ),
+      SnackBar(content: Text('${skin.name} için ${skin.price} GOLD gerekiyor.')),
     );
   }
 
@@ -48,74 +55,48 @@ class _ShopScreenState extends State<ShopScreen> {
         : kSkinCatalog;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF090A17),
+      backgroundColor: const Color(0xFF050F20),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: const Color(0xFF071426),
         foregroundColor: Colors.white,
-        title: const Text(
-          'SKIN MARKET',
-          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.1),
+        title: Text(
+          _ownedOnly ? 'ENVANTER' : 'MARKET',
+          style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1.1),
         ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 14),
-            child: Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFB62E).withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFFFC34D)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.monetization_on_rounded,
-                      size: 18,
-                      color: Color(0xFFFFC34D),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      '${progress.gold}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+        actions: <Widget>[
+          _CurrencyChip(icon: Icons.diamond_rounded, value: '${progress.gems}', color: const Color(0xFF65E9FF)),
+          const SizedBox(width: 6),
+          _CurrencyChip(icon: Icons.monetization_on_rounded, value: '${progress.gold}', color: const Color(0xFFFFC739)),
+          const SizedBox(width: 10),
         ],
       ),
       body: DecoratedBox(
         decoration: const BoxDecoration(
           gradient: RadialGradient(
-            center: Alignment.topCenter,
-            radius: 1.15,
-            colors: [Color(0xFF24285C), Color(0xFF090A17)],
+            center: Alignment(0, -0.6),
+            radius: 1.2,
+            colors: <Color>[Color(0xFF122C51), Color(0xFF050F20)],
           ),
         ),
         child: SafeArea(
           top: false,
           child: Column(
-            children: [
+            children: <Widget>[
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
                 child: Row(
-                  children: [
+                  children: <Widget>[
                     Expanded(
-                      child: _FilterButton(
-                        label: 'MARKET',
+                      child: _TabButton(
+                        text: 'MARKET',
                         selected: !_ownedOnly,
                         onTap: () => setState(() => _ownedOnly = false),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
                     Expanded(
-                      child: _FilterButton(
-                        label: 'ENVANTER',
+                      child: _TabButton(
+                        text: 'ENVANTER',
                         selected: _ownedOnly,
                         onTap: () => setState(() => _ownedOnly = true),
                       ),
@@ -123,26 +104,51 @@ class _ShopScreenState extends State<ShopScreen> {
                   ],
                 ),
               ),
-              Expanded(
-                child: GridView.builder(
-                  padding: const EdgeInsets.fromLTRB(14, 2, 14, 26),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 12,
-                    crossAxisSpacing: 12,
-                    childAspectRatio: 0.72,
+              if (!_ownedOnly)
+                Container(
+                  margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0A1B31),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: const Color(0xFFFFB445).withValues(alpha: .55)),
                   ),
-                  itemCount: visible.length,
-                  itemBuilder: (context, index) {
-                    final skin = visible[index];
-                    return _SkinCard(
-                      skin: skin,
-                      owned: progress.ownsSkin(skin.id),
-                      equipped: progress.equippedSkinId == skin.id,
-                      onTap: () => _handleSkin(skin),
-                    );
-                  },
+                  child: const Row(
+                    children: <Widget>[
+                      Icon(Icons.local_offer_rounded, color: Color(0xFFFFC44B), size: 20),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'FAN COSTUMES • SEASON 1 COLLECTION',
+                          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              Expanded(
+                child: visible.isEmpty
+                    ? const Center(child: Text('Henüz skin yok.', style: TextStyle(color: Colors.white54)))
+                    : GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(12, 2, 12, 24),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 10,
+                          crossAxisSpacing: 10,
+                          childAspectRatio: .73,
+                        ),
+                        itemCount: visible.length,
+                        itemBuilder: (context, index) {
+                          final skin = visible[index];
+                          return _SkinCard(
+                            skin: skin,
+                            owned: progress.ownsSkin(skin.id),
+                            equipped: progress.equippedSkinId == skin.id,
+                            onTap: () => _handleSkin(skin),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
@@ -152,14 +158,37 @@ class _ShopScreenState extends State<ShopScreen> {
   }
 }
 
-class _FilterButton extends StatelessWidget {
-  const _FilterButton({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
+class _CurrencyChip extends StatelessWidget {
+  const _CurrencyChip({required this.icon, required this.value, required this.color});
 
-  final String label;
+  final IconData icon;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0B1D33),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: .45)),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, color: color, size: 17),
+          const SizedBox(width: 4),
+          Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900)),
+        ],
+      ),
+    );
+  }
+}
+
+class _TabButton extends StatelessWidget {
+  const _TabButton({required this.text, required this.selected, required this.onTap});
+
+  final String text;
   final bool selected;
   final VoidCallback onTap;
 
@@ -168,15 +197,11 @@ class _FilterButton extends StatelessWidget {
     return FilledButton(
       onPressed: onTap,
       style: FilledButton.styleFrom(
-        backgroundColor:
-            selected ? const Color(0xFF6574FF) : const Color(0xFF1C203D),
+        backgroundColor: selected ? const Color(0xFF1599D2) : const Color(0xFF10233D),
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 13),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
-      child: Text(
-        label,
-        style: const TextStyle(fontWeight: FontWeight.w900),
-      ),
+      child: Text(text, style: const TextStyle(fontWeight: FontWeight.w900)),
     );
   }
 }
@@ -196,84 +221,67 @@ class _SkinCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final border = equipped ? const Color(0xFF51E5FF) : const Color(0xFF244769);
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF15182C),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          width: equipped ? 2.2 : 1,
-          color: equipped ? skin.accent : Colors.white12,
-        ),
+        color: const Color(0xFF091A2E),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: border, width: equipped ? 2 : 1),
         boxShadow: equipped
-            ? [
-                BoxShadow(
-                  color: skin.accent.withValues(alpha: 0.18),
-                  blurRadius: 18,
-                ),
-              ]
+            ? <BoxShadow>[const BoxShadow(color: Color(0x334ADFFF), blurRadius: 16)]
             : null,
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(9),
         child: Column(
-          children: [
+          children: <Widget>[
             Expanded(
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(17),
                   gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [
-                      skin.accent.withValues(alpha: 0.24),
-                      Colors.black.withValues(alpha: 0.12),
-                    ],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: <Color>[skin.accent.withValues(alpha: .24), const Color(0xFF06101D)],
                   ),
+                  borderRadius: BorderRadius.circular(14),
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: SkinAvatar(skin: skin, frame: 0),
+                  padding: const EdgeInsets.all(7),
+                  child: SkinAvatar(skin: skin),
                 ),
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 7),
             Text(
-              skin.name,
+              skin.name.toUpperCase(),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-              ),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             SizedBox(
               width: double.infinity,
-              height: 38,
+              height: 37,
               child: FilledButton(
                 onPressed: onTap,
                 style: FilledButton.styleFrom(
-                  backgroundColor: equipped
-                      ? const Color(0xFF2FB775)
-                      : owned
-                          ? const Color(0xFF5F6EEB)
-                          : const Color(0xFFFFA928),
-                  foregroundColor:
-                      equipped || owned ? Colors.white : Colors.black87,
                   padding: EdgeInsets.zero,
+                  backgroundColor: equipped
+                      ? const Color(0xFF28B879)
+                      : owned
+                          ? const Color(0xFF168BC1)
+                          : const Color(0xFFFFB938),
+                  foregroundColor: equipped || owned ? Colors.white : const Color(0xFF1B2230),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
                 ),
                 child: Text(
                   equipped
                       ? 'EQUIPPED'
                       : owned
-                          ? (skin.special ? 'ÖZEL • EQUIP' : 'EQUIP')
+                          ? 'EQUIP'
                           : '${skin.price} GOLD',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
                 ),
               ),
             ),
