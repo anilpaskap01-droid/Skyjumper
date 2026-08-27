@@ -25,8 +25,9 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('OYNA'), findsOneWidget);
-    expect(find.text('MARKET / ENVANTER'), findsOneWidget);
+    expect(find.text('CONTINUE'), findsOneWidget);
+    expect(find.text('MARKET'), findsOneWidget);
+    expect(find.text('ENVANTER'), findsOneWidget);
   }
 
   testWidgets('home fits a compact portrait phone', (tester) async {
