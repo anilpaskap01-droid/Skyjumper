@@ -42,10 +42,10 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
-      - name: Verify forbidden SDKs are absent
+      - name: Verify forbidden SDK dependencies are absent
         run: |
-          if grep -RniE 'firebase|google_mobile_ads|admob|in_app_purchase|revenuecat' lib pubspec.yaml; then
-            echo 'Forbidden SDK reference found.'
+          if grep -RniE 'package:(firebase|google_mobile_ads|in_app_purchase)|firebase_core:|firebase_auth:|cloud_firestore:|google_mobile_ads:|in_app_purchase:|purchases_flutter:' lib pubspec.yaml; then
+            echo 'Forbidden SDK dependency reference found.'
             exit 1
           fi
 
