@@ -19,53 +19,43 @@ void main() {
     expect(skinById('void').price, 10500);
   });
 
-  test('purchase cannot make gold negative', () async {
-    SharedPreferences.setMockInitialValues(<String, Object>{'gold': 499});
+  test('gold and gems are unlimited and never deducted', () async {
     final progress = await PlayerProgressRepository.load();
+    final beforeGold = progress.gold;
+    final beforeGems = progress.gems;
 
-    final bought = await progress.purchaseSkin(skinById('glacier'));
-
-    expect(bought, isFalse);
-    expect(progress.gold, 499);
-    expect(progress.ownsSkin('glacier'), isFalse);
+    expect(beforeGold, PlayerProgressRepository.unlimitedCurrency);
+    expect(beforeGems, PlayerProgressRepository.unlimitedCurrency);
+    expect(await progress.purchaseSkin(skinById('void')), isTrue);
+    expect(progress.gold, beforeGold);
+    expect(progress.gems, beforeGems);
   });
 
-  test('purchase and equip persist after reload', () async {
-    SharedPreferences.setMockInitialValues(<String, Object>{'gold': 1600});
+  test('every catalog skin is unlocked', () async {
+    final progress = await PlayerProgressRepository.load();
+    for (final skin in kSkinCatalog) {
+      expect(progress.ownsSkin(skin.id), isTrue, reason: skin.id);
+    }
+    expect(progress.ownedSkinIds.length, kSkinCatalog.length);
+  });
+
+  test('any original skin can be equipped and persists', () async {
     final progress = await PlayerProgressRepository.load();
 
-    expect(await progress.purchaseSkin(skinById('glacier')), isTrue);
-    expect(progress.gold, 1100);
-    expect(await progress.equipSkin('glacier'), isTrue);
+    expect(await progress.equipSkin('custom_slot_02'), isTrue);
+    expect(progress.equippedSkinId, 'custom_slot_02');
 
     final reloaded = await PlayerProgressRepository.load();
-    expect(reloaded.gold, 1100);
-    expect(reloaded.ownsSkin('glacier'), isTrue);
-    expect(reloaded.equippedSkinId, 'glacier');
+    expect(reloaded.equippedSkinId, 'custom_slot_02');
   });
 
-  test('only owned skin can be equipped', () async {
+  test('run commit updates high score without changing unlimited currency', () async {
+    SharedPreferences.setMockInitialValues(<String, Object>{'best_score': 250});
     final progress = await PlayerProgressRepository.load();
 
-    expect(await progress.equipSkin('void'), isFalse);
-    expect(progress.equippedSkinId, 'classic');
-    expect(await progress.equipSkin('king'), isTrue);
-    expect(progress.equippedSkinId, 'king');
-  });
-
-  test('run commit keeps high score and adds earned gold', () async {
-    SharedPreferences.setMockInitialValues(<String, Object>{
-      'best_score': 250,
-      'gold': 30,
-    });
-    final progress = await PlayerProgressRepository.load();
-
-    await progress.commitRun(score: 180, runGold: 7);
-    expect(progress.bestScore, 250);
-    expect(progress.gold, 37);
-
-    await progress.commitRun(score: 900, runGold: 3);
+    await progress.commitRun(score: 900, runGold: 9999);
     expect(progress.bestScore, 900);
-    expect(progress.gold, 40);
+    expect(progress.gold, PlayerProgressRepository.unlimitedCurrency);
+    expect(progress.gems, PlayerProgressRepository.unlimitedCurrency);
   });
 }
