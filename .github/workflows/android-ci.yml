@@ -2,7 +2,7 @@ name: SkyJumper Android CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, skyjumper-local-complete]
   workflow_dispatch:
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
           flutter create --platforms=android --org com.hantro --project-name skyjumper .
           rm -f test/widget_test.dart
 
-      - name: Enable skin CDN access only
+      - name: Enable GitHub skin image access only
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -41,6 +41,13 @@ jobs:
 
       - name: Resolve dependencies
         run: flutter pub get
+
+      - name: Verify forbidden SDKs are absent
+        run: |
+          if grep -RniE 'firebase|google_mobile_ads|admob|in_app_purchase|revenuecat' lib pubspec.yaml; then
+            echo 'Forbidden SDK reference found.'
+            exit 1
+          fi
 
       - name: Analyze
         run: flutter analyze
