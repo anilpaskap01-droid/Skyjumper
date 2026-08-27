@@ -1,0 +1,1 @@
+Bundled SkyJumper character assets. No Firebase, AdMob or in-app-purchase SDK is used.
