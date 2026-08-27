@@ -22,8 +22,6 @@ class SkinDefinition {
   final int? customSlot;
 }
 
-// Exactly the 37 playable skin folders found in the supplied original APK:
-// 7 base skins + custom_slot_01..custom_slot_30. No generated/non-game skins.
 const List<SkinDefinition> kSkinCatalog = <SkinDefinition>[
   SkinDefinition(id: 'classic', name: 'Classic', price: 0, accent: Color(0xFFFF7A22), defaultOwned: true),
   SkinDefinition(id: 'glacier', name: 'Glacier', price: 500, accent: Color(0xFF6DDCFF)),
@@ -60,8 +58,8 @@ const List<SkinDefinition> kSkinCatalog = <SkinDefinition>[
   SkinDefinition(id: 'custom_slot_26', name: 'Frost II', price: 2200, accent: Color(0xFF81D9FF), special: true, customSlot: 26),
   SkinDefinition(id: 'custom_slot_27', name: 'Frost III', price: 2200, accent: Color(0xFF78D2FF), special: true, customSlot: 27),
   SkinDefinition(id: 'custom_slot_28', name: 'Frost IV', price: 2200, accent: Color(0xFF74CDF9), special: true, customSlot: 28),
-  SkinDefinition(id: 'custom_slot_29', name: 'Frost V', price: 2200, accent: Color(0xFF69C7F4), special: true, customSlot: 29),
-  SkinDefinition(id: 'custom_slot_30', name: 'Frost Bot', price: 3200, accent: Color(0xFF5EC4F5), special: true, customSlot: 30),
+  SkinDefinition(id: 'custom_slot_29', name: 'Phone Boy', price: 2200, accent: Color(0xFFFFA13D), special: true, customSlot: 29),
+  SkinDefinition(id: 'custom_slot_30', name: 'Hot Wheels', price: 3200, accent: Color(0xFF58CFFF), special: true, customSlot: 30),
 ];
 
 SkinDefinition skinById(String id) => kSkinCatalog.firstWhere(
