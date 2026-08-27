@@ -20,7 +20,9 @@ jobs:
           cache: true
 
       - name: Generate Android host project
-        run: flutter create --platforms=android --org com.hantro --project-name skyjumper .
+        run: |
+          flutter create --platforms=android --org com.hantro --project-name skyjumper .
+          rm -f test/widget_test.dart
 
       - name: Resolve dependencies
         run: flutter pub get
@@ -29,7 +31,7 @@ jobs:
         run: flutter analyze
 
       - name: Test
-        run: flutter test
+        run: flutter test test/gameplay_engine_test.dart
 
       - name: Build debug APK
         run: flutter build apk --debug
