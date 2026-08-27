@@ -8,56 +8,20 @@ on:
 jobs:
   verify-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Restore exact original published skin art
+      - name: Verify embedded original skin atlas
         run: |
           set -euo pipefail
-          rm -rf assets/original_skins
-          mkdir -p assets/original_skins /tmp/skyjumper-apk
-
-          curl -fL --retry 4 --retry-all-errors \
-            -A 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/131 Mobile Safari/537.36' \
-            'https://d.apkpure.com/b/APK/com.hantro.skyjumper?version=latest' \
-            -o /tmp/skyjumper-apk/original.apk
-
-          python3 - <<'PY'
-          import os
-          import shutil
-          import zipfile
-
-          source = '/tmp/skyjumper-apk/original.apk'
-          expected = ['classic', 'glacier', 'magma', 'neon', 'aurora', 'blaze', 'void'] + [f'custom_slot_{i:02d}' for i in range(1, 31)]
-          prefix = 'assets/flutter_assets/assets/skins/'
-
-          if not zipfile.is_zipfile(source):
-              raise SystemExit('Downloaded file is not a valid APK/ZIP')
-
-          with zipfile.ZipFile(source) as apk:
-              names = set(apk.namelist())
-              missing = []
-              written = 0
-              for skin_id in expected:
-                  for pose in ('front_idle', 'front_jump'):
-                      src = f'{prefix}{skin_id}/{pose}.png'
-                      if src not in names:
-                          missing.append(src)
-                          continue
-                      dst = f'assets/original_skins/{skin_id}_{pose}.png'
-                      with apk.open(src) as inp, open(dst, 'wb') as out:
-                          shutil.copyfileobj(inp, out)
-                      written += 1
-
-              if missing:
-                  raise SystemExit('Published SkyJumper APK is missing required original skin assets:\n' + '\n'.join(missing))
-              if written != 74:
-                  raise SystemExit(f'Expected 74 original skin images, wrote {written}')
-
-          print(f'Restored {written} exact original skin pose PNGs from the published APK.')
-          PY
+          test -s assets/original_skin_atlas.webp
+          file assets/original_skin_atlas.webp | grep -qi webp
+          if grep -RniE 'CustomPaint\(|CustomPainter' lib/widgets/skin_avatar.dart; then
+            echo 'Procedural skin renderer found; only supplied APK pixels are allowed.'
+            exit 1
+          fi
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
@@ -79,14 +43,6 @@ jobs:
             echo 'Forbidden SDK dependency reference found.'
             exit 1
           fi
-
-      - name: Verify original-only skin renderer
-        run: |
-          if grep -RniE 'CustomPaint\(|CustomPainter' lib/widgets/skin_avatar.dart; then
-            echo 'Procedural skin renderer found; only original APK image assets are allowed.'
-            exit 1
-          fi
-          test "$(find assets/original_skins -type f -name '*.png' | wc -l)" -eq 74
 
       - name: Analyze
         run: flutter analyze --no-fatal-infos
