@@ -17,50 +17,25 @@ class SkinAvatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    switch (skin.visualKind) {
-      case SkinVisualKind.procedural:
-        return _ProceduralAvatar(skin: skin, frame: frame);
-      case SkinVisualKind.asset:
-        if (skin.source.isEmpty) {
-          return _ProceduralAvatar(skin: skin, frame: frame);
-        }
-        return Image.asset(
-          skin.source,
-          fit: fit,
-          filterQuality: FilterQuality.high,
-          errorBuilder: (_, __, ___) =>
-              _ProceduralAvatar(skin: skin, frame: frame),
-        );
-      case SkinVisualKind.network:
-        return Image.network(
-          skin.source,
-          fit: fit,
-          filterQuality: FilterQuality.medium,
-          gaplessPlayback: true,
-          errorBuilder: (_, __, ___) =>
-              _ProceduralAvatar(skin: skin, frame: frame),
-          loadingBuilder: (context, child, progress) {
-            if (progress == null) return child;
-            return _NetworkFallback(skin: skin);
-          },
-        );
-      case SkinVisualKind.spriteSheet:
-        if (skin.source.isEmpty) {
-          return _ProceduralAvatar(skin: skin, frame: frame);
-        }
-        return SpriteSheetFrame(
-          assetPath: skin.source,
-          columns: skin.columns,
-          rows: skin.rows,
-          frame: frame.clamp(0, skin.frameCount - 1).toInt(),
-          fallback: _ProceduralAvatar(skin: skin, frame: frame),
-        );
+    if (skin.visualKind == SkinVisualKind.network && skin.source.isNotEmpty) {
+      return Image.network(
+        skin.source,
+        fit: fit,
+        filterQuality: FilterQuality.high,
+        gaplessPlayback: true,
+        loadingBuilder: (context, child, progress) {
+          if (progress == null) return child;
+          return _ProceduralSkin(skin: skin, frame: frame);
+        },
+        errorBuilder: (_, __, ___) => _ProceduralSkin(skin: skin, frame: frame),
+      );
     }
+    return _ProceduralSkin(skin: skin, frame: frame);
   }
 }
 
-class _ProceduralAvatar extends StatelessWidget {
-  const _ProceduralAvatar({required this.skin, required this.frame});
+class _ProceduralSkin extends StatelessWidget {
+  const _ProceduralSkin({required this.skin, required this.frame});
 
   final SkinDefinition skin;
   final int frame;
@@ -68,563 +43,420 @@ class _ProceduralAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      painter: _SkyJumperSkinPainter(skin: skin, frame: frame),
+      painter: _SkinPainter(skin: skin, frame: frame),
       child: const SizedBox.expand(),
     );
   }
 }
 
-class SpriteSheetFrame extends StatelessWidget {
-  const SpriteSheetFrame({
-    super.key,
-    required this.assetPath,
-    required this.columns,
-    required this.rows,
-    required this.frame,
-    required this.fallback,
-  });
-
-  final String assetPath;
-  final int columns;
-  final int rows;
-  final int frame;
-  final Widget fallback;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final height = constraints.maxHeight;
-        if (!width.isFinite || !height.isFinite || width <= 0 || height <= 0) {
-          return const SizedBox.shrink();
-        }
-
-        final safeFrame = frame.clamp(0, columns * rows - 1).toInt();
-        final column = safeFrame % columns;
-        final row = safeFrame ~/ columns;
-
-        return ClipRect(
-          child: Stack(
-            clipBehavior: Clip.hardEdge,
-            children: [
-              Positioned(
-                left: -column * width,
-                top: -row * height,
-                width: width * columns,
-                height: height * rows,
-                child: Image.asset(
-                  assetPath,
-                  fit: BoxFit.fill,
-                  filterQuality: FilterQuality.high,
-                  errorBuilder: (_, __, ___) => SizedBox(
-                    width: width * columns,
-                    height: height * rows,
-                    child: Align(
-                      alignment: Alignment(
-                        -1 + (column * 2 + 1) / columns,
-                        -1 + (row * 2 + 1) / rows,
-                      ),
-                      child: SizedBox(
-                        width: width,
-                        height: height,
-                        child: fallback,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _NetworkFallback extends StatelessWidget {
-  const _NetworkFallback({required this.skin});
-
-  final SkinDefinition skin;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        _ProceduralAvatar(skin: skin, frame: 0),
-        Align(
-          alignment: Alignment.bottomCenter,
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 3),
-            child: SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.8,
-                color: Colors.white.withValues(alpha: 0.55),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SkyJumperSkinPainter extends CustomPainter {
-  const _SkyJumperSkinPainter({required this.skin, required this.frame});
+class _SkinPainter extends CustomPainter {
+  const _SkinPainter({required this.skin, required this.frame});
 
   final SkinDefinition skin;
   final int frame;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (size.width <= 0 || size.height <= 0) return;
-
-    final scale = math.min(size.width / 100, size.height / 120);
-    final origin = Offset(size.width / 2, size.height / 2);
-    final pose = _poseForFrame();
+    if (size.isEmpty) return;
+    final s = math.min(size.width / 120, size.height / 160);
+    final x = size.width / 2;
+    final y = size.height / 2 + 8 * s;
+    final slot = skin.customSlot;
+    final pose = _pose(frame, skin.hasCrownAnimation);
 
     canvas.save();
-    canvas.translate(origin.dx, origin.dy + pose.dy * scale);
-    canvas.scale(scale, scale * pose.scaleY);
+    canvas.translate(x, y + pose.y * s);
+    canvas.scale(s, s * pose.scaleY);
 
-    switch (skin.id) {
-      case 'pirate':
-        _drawPirate(canvas);
-        break;
-      case 'king':
-        _drawKing(canvas, pose.crownLift);
-        break;
-      case 'hotwheels':
-        _drawHotWheels(canvas);
-        break;
-      case 'hacker':
-        _drawHacker(canvas);
-        break;
-      case 'fener':
-        _drawFener(canvas);
-        break;
-      default:
-        _drawClassic(canvas, skin.accent);
+    if (slot == null) {
+      _drawClassic(canvas, skin.accent);
+    } else {
+      _drawSlot(canvas, slot);
+      if (skin.hasCrownAnimation) {
+        _drawCrown(canvas, -70 + pose.crownLift);
+      }
     }
-
     canvas.restore();
   }
 
-  _Pose _poseForFrame() {
-    if (skin.id == 'pirate') {
-      const dy = <double>[0, 5, -2, -7, -9, -5, 3, 5, 2, 0];
-      const sy = <double>[1, .90, 1.04, 1.08, 1.10, 1.05, .92, .94, .98, 1];
-      final i = frame.clamp(0, 9).toInt();
-      return _Pose(dy: dy[i], scaleY: sy[i]);
-    }
-    if (skin.id == 'king') {
-      const dy = <double>[
-        0,
-        4,
-        1,
-        -3,
-        -7,
-        -10,
-        -11,
-        -10,
-        -7,
-        -4,
-        0,
-        3,
-        5,
-        4,
-        2,
-        0,
-      ];
-      const crown = <double>[
-        0,
-        0,
-        -2,
-        -5,
-        -9,
-        -14,
-        -17,
-        -18,
-        -18,
-        -17,
-        -15,
-        -12,
-        -8,
-        -4,
-        -1,
-        0,
-      ];
-      final i = frame.clamp(0, 15).toInt();
-      return _Pose(
-        dy: dy[i],
-        scaleY: i == 1 || i == 12 ? .93 : 1,
-        crownLift: crown[i],
-      );
-    }
-    return const _Pose(dy: 0, scaleY: 1);
+  _Pose _pose(int frame, bool crown) {
+    final phase = (frame % 16) / 15.0;
+    final arc = math.sin(phase * math.pi);
+    return _Pose(
+      y: -10 * arc,
+      scaleY: 1 + 0.06 * arc,
+      crownLift: crown ? -18 * math.sin(math.min(1, phase * 1.12) * math.pi) : 0,
+    );
   }
 
-  Paint _fill(Color color) => Paint()
-    ..color = color
-    ..style = PaintingStyle.fill;
+  Paint _fill(Color color) => Paint()..color = color;
 
-  Paint _stroke([Color color = const Color(0xFF1B1520)]) => Paint()
+  Paint _line([Color color = const Color(0xFF1F1621), double width = 3]) => Paint()
     ..color = color
     ..style = PaintingStyle.stroke
-    ..strokeWidth = 3.1
-    ..strokeJoin = StrokeJoin.round
-    ..strokeCap = StrokeCap.round;
+    ..strokeWidth = width
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
 
-  void _drawClassic(Canvas c, Color color) {
-    _drawFeet(c, const Color(0xFF3C2A22));
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-29, -29, 58, 66),
-        const Radius.circular(26),
-      ),
-      _fill(color),
+  void _drawClassic(Canvas c, Color accent) {
+    _feet(c, const Color(0xFF53351F));
+    final body = RRect.fromRectAndRadius(
+      const Rect.fromLTWH(-34, -45, 68, 82),
+      const Radius.circular(31),
     );
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-29, -29, 58, 66),
-        const Radius.circular(26),
-      ),
-      _stroke(),
-    );
-    _drawFace(c, const Offset(0, -5), sleepy: true);
+    c.drawRRect(body, _fill(accent));
+    c.drawRRect(body, _line());
+    _face(c, centerY: -15, skinTone: accent, smile: false);
   }
 
-  void _drawPirate(Canvas c) {
-    _drawFeet(c, const Color(0xFF5C331C));
-    _drawArms(c, const Color(0xFFFF9B35), y: 3);
+  void _drawSlot(Canvas c, int slot) {
+    switch (slot) {
+      case 1:
+        _astronaut(c);
+      case 2:
+        _king(c);
+      case 3:
+        _coolBoy(c);
+      case 4:
+        _darkLord(c);
+      case 5:
+        _arctic(c);
+      case 6:
+        _pirate(c);
+      case 7:
+        _zombie(c);
+      case 8:
+        _relic(c);
+      case 9:
+        _spaceRanger(c);
+      case 10:
+        _commando(c);
+      case 11:
+        _voidKnight(c);
+      case 12:
+        _boss(c);
+      case 13:
+        _crystal(c);
+      case 14:
+        _engineer(c);
+      case 15:
+        _caveman(c);
+      case 16:
+        _gubi(c);
+      case 17:
+        _street(c);
+      case 18:
+        _princess(c);
+      case 19:
+        _football(c, const Color(0xFFD92F2F), const Color(0xFFFFD430));
+      case 20:
+        _football(c, const Color(0xFFF2D52D), const Color(0xFF132B76));
+      case 21:
+        _football(c, Colors.white, const Color(0xFF171717));
+      case 22:
+        _football(c, const Color(0xFF7C2545), const Color(0xFF4F80CC));
+      case 23:
+        _hacker(c);
+      case 24:
+        _wizard(c);
+      case 25:
+      case 26:
+      case 27:
+      case 28:
+      case 29:
+        _frost(c, slot);
+      case 30:
+        _frostBot(c);
+      default:
+        _drawClassic(c, skin.accent);
+    }
+  }
 
-    final torso = RRect.fromRectAndRadius(
-      const Rect.fromLTWH(-25, -7, 50, 42),
-      const Radius.circular(13),
+  void _baseHuman(
+    Canvas c, {
+    Color skinTone = const Color(0xFFF2B27C),
+    required Color shirt,
+    Color pants = const Color(0xFF252B35),
+    bool smile = true,
+  }) {
+    _feet(c, const Color(0xFF20242B));
+    c.drawRRect(
+      RRect.fromRectAndRadius(const Rect.fromLTWH(-25, 17, 50, 27), const Radius.circular(9)),
+      _fill(pants),
     );
-    c.drawRRect(torso, _fill(const Color(0xFFC8262D)));
-    c.save();
-    c.clipRRect(torso);
-    for (var y = -4.0; y < 35; y += 10) {
+    c.drawRRect(
+      RRect.fromRectAndRadius(const Rect.fromLTWH(-30, -21, 60, 46), const Radius.circular(16)),
+      _fill(shirt),
+    );
+    c.drawRRect(
+      RRect.fromRectAndRadius(const Rect.fromLTWH(-30, -21, 60, 46), const Radius.circular(16)),
+      _line(),
+    );
+    c.drawCircle(const Offset(-34, -3), 9, _fill(skinTone));
+    c.drawCircle(const Offset(34, -3), 9, _fill(skinTone));
+    _head(c, skinTone, -43);
+    _face(c, centerY: -43, skinTone: skinTone, smile: smile);
+  }
+
+  void _head(Canvas c, Color tone, double y) {
+    c.drawCircle(Offset(0, y), 29, _fill(tone));
+    c.drawCircle(Offset(0, y), 29, _line());
+  }
+
+  void _face(
+    Canvas c, {
+    required double centerY,
+    required Color skinTone,
+    bool smile = true,
+    bool eyePatch = false,
+    Color eyeColor = const Color(0xFF241B18),
+  }) {
+    if (eyePatch) {
+      c.drawOval(Rect.fromCenter(center: Offset(-10, centerY - 2), width: 15, height: 10), _fill(Colors.black));
+      c.drawLine(Offset(-27, centerY - 11), Offset(5, centerY + 1), _line(Colors.black, 2));
+    } else {
+      c.drawCircle(Offset(-10, centerY - 2), 3.4, _fill(eyeColor));
+    }
+    c.drawCircle(Offset(10, centerY - 2), 3.4, _fill(eyeColor));
+    final mouth = Path()..moveTo(-8, centerY + 11);
+    if (smile) {
+      mouth.quadraticBezierTo(0, centerY + 18, 8, centerY + 11);
+    } else {
+      mouth.lineTo(8, centerY + 11);
+    }
+    c.drawPath(mouth, _line(const Color(0xFF4A2319), 2.2));
+  }
+
+  void _feet(Canvas c, Color color) {
+    c.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(-25, 40, 22, 12), const Radius.circular(6)), _fill(color));
+    c.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(3, 40, 22, 12), const Radius.circular(6)), _fill(color));
+  }
+
+  void _hair(Canvas c, Color color, {double y = -66}) {
+    final path = Path()
+      ..moveTo(-28, y + 20)
+      ..quadraticBezierTo(-23, y - 3, -8, y + 5)
+      ..quadraticBezierTo(0, y - 8, 8, y + 5)
+      ..quadraticBezierTo(23, y - 3, 28, y + 20)
+      ..quadraticBezierTo(9, y + 10, 0, y + 17)
+      ..quadraticBezierTo(-9, y + 10, -28, y + 20)
+      ..close();
+    c.drawPath(path, _fill(color));
+    c.drawPath(path, _line());
+  }
+
+  void _astronaut(Canvas c) {
+    _baseHuman(c, skinTone: const Color(0xFFEEF4F7), shirt: const Color(0xFFE9EFF4), pants: const Color(0xFFB9C8D4));
+    c.drawCircle(const Offset(0, -43), 35, _line(const Color(0xFF7A99AB), 6));
+    c.drawOval(const Rect.fromLTWH(-20, -58, 40, 26), _fill(const Color(0xAA5BC9ED)));
+    c.drawRect(const Rect.fromLTWH(-16, -13, 32, 16), _fill(const Color(0xFF7CA8BA)));
+  }
+
+  void _king(Canvas c) {
+    final cape = Path()
+      ..moveTo(-30, -18)
+      ..lineTo(-43, 45)
+      ..lineTo(0, 34)
+      ..lineTo(43, 45)
+      ..lineTo(30, -18)
+      ..close();
+    c.drawPath(cape, _fill(const Color(0xFFB82438)));
+    c.drawPath(cape, _line());
+    _baseHuman(c, shirt: const Color(0xFFF2F0EA), pants: const Color(0xFFD22E55));
+    c.drawRect(const Rect.fromLTWH(-27, 4, 54, 8), _fill(const Color(0xFFD6A12A)));
+    c.drawCircle(const Offset(0, 8), 4, _fill(const Color(0xFFE93C5A)));
+  }
+
+  void _drawCrown(Canvas c, double y) {
+    final p = Path()
+      ..moveTo(-22, y + 16)
+      ..lineTo(-19, y)
+      ..lineTo(-9, y + 8)
+      ..lineTo(0, y - 7)
+      ..lineTo(9, y + 8)
+      ..lineTo(19, y)
+      ..lineTo(22, y + 16)
+      ..close();
+    c.drawPath(p, _fill(const Color(0xFFFFD439)));
+    c.drawPath(p, _line(const Color(0xFF8B5900), 2.4));
+    c.drawCircle(Offset(0, y + 10), 3, _fill(const Color(0xFFE33A51)));
+  }
+
+  void _coolBoy(Canvas c) {
+    _baseHuman(c, shirt: const Color(0xFF15161B), pants: const Color(0xFF292D35));
+    c.drawArc(const Rect.fromLTWH(-30, -76, 60, 48), math.pi, math.pi, true, _fill(const Color(0xFF252A31)));
+    c.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(-23, -51, 46, 13), const Radius.circular(6)), _fill(Colors.black));
+  }
+
+  void _darkLord(Canvas c) {
+    _baseHuman(c, skinTone: const Color(0xFF17181D), shirt: const Color(0xFF151820), pants: const Color(0xFF0D0E13), smile: false);
+    c.drawArc(const Rect.fromLTWH(-35, -79, 70, 62), math.pi, math.pi, true, _fill(const Color(0xFF0A0C12)));
+    c.drawCircle(const Offset(-10, -45), 3, _fill(const Color(0xFFFF3B34)));
+    c.drawCircle(const Offset(10, -45), 3, _fill(const Color(0xFFFF3B34)));
+  }
+
+  void _arctic(Canvas c) {
+    _baseHuman(c, shirt: const Color(0xFFE7EFF4), pants: const Color(0xFF6E8A98));
+    c.drawCircle(const Offset(0, -43), 34, _line(const Color(0xFFF7FBFF), 10));
+  }
+
+  void _pirate(Canvas c) {
+    _baseHuman(c, shirt: const Color(0xFFC62E32), pants: const Color(0xFF70401F));
+    for (var y = -18.0; y < 16; y += 10) {
       c.drawRect(Rect.fromLTWH(-27, y, 54, 5), _fill(Colors.white));
     }
-    c.restore();
-    c.drawRRect(torso, _stroke());
-
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-28, -9, 9, 45),
-        const Radius.circular(5),
-      ),
-      _fill(const Color(0xFF17151A)),
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(19, -9, 9, 45),
-        const Radius.circular(5),
-      ),
-      _fill(const Color(0xFF17151A)),
-    );
-    c.drawRect(const Rect.fromLTWH(-24, 24, 48, 8), _fill(const Color(0xFF6E3C22)));
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-7, 22, 14, 12),
-        const Radius.circular(3),
-      ),
-      _fill(const Color(0xFFFFC548)),
-    );
-
-    _drawHead(c, const Color(0xFFFF9B35), centerY: -27);
-    _drawFace(c, const Offset(0, -27), sleepy: false, eyePatch: true);
-
+    _face(c, centerY: -43, skinTone: const Color(0xFFF2B27C), smile: true, eyePatch: true);
     final hat = Path()
-      ..moveTo(-36, -47)
-      ..quadraticBezierTo(-26, -61, -12, -55)
-      ..quadraticBezierTo(0, -70, 12, -55)
-      ..quadraticBezierTo(26, -61, 36, -47)
-      ..quadraticBezierTo(18, -40, 0, -44)
-      ..quadraticBezierTo(-18, -40, -36, -47)
+      ..moveTo(-36, -67)
+      ..quadraticBezierTo(-25, -82, -11, -74)
+      ..quadraticBezierTo(0, -89, 11, -74)
+      ..quadraticBezierTo(25, -82, 36, -67)
+      ..quadraticBezierTo(14, -58, 0, -62)
+      ..quadraticBezierTo(-14, -58, -36, -67)
       ..close();
-    c.drawPath(hat, _fill(const Color(0xFF15151A)));
-    c.drawPath(hat, _stroke());
-    c.drawCircle(const Offset(0, -51), 5, _fill(Colors.white));
-    c.drawLine(const Offset(-7, -56), const Offset(7, -46), _stroke(Colors.white)..strokeWidth = 2);
-    c.drawLine(const Offset(7, -56), const Offset(-7, -46), _stroke(Colors.white)..strokeWidth = 2);
+    c.drawPath(hat, _fill(const Color(0xFF15171B)));
+    c.drawPath(hat, _line());
   }
 
-  void _drawKing(Canvas c, double crownLift) {
-    final cape = Path()
-      ..moveTo(-26, -4)
-      ..lineTo(-37, 37)
-      ..lineTo(0, 30)
-      ..lineTo(37, 37)
-      ..lineTo(26, -4)
+  void _zombie(Canvas c) {
+    _baseHuman(c, skinTone: const Color(0xFF70B46A), shirt: const Color(0xFF8D3F4B), pants: const Color(0xFF403E36), smile: false);
+    c.drawLine(const Offset(-18, -58), const Offset(-3, -50), _line(const Color(0xFF763A3A), 2));
+  }
+
+  void _relic(Canvas c) {
+    _baseHuman(c, skinTone: const Color(0xFF9A7651), shirt: const Color(0xFF8A643A), pants: const Color(0xFF4F4334));
+    c.drawCircle(const Offset(0, -43), 34, _line(const Color(0xFF6F5331), 7));
+    c.drawCircle(const Offset(0, -43), 18, _line(const Color(0xFF79C8CF), 4));
+  }
+
+  void _spaceRanger(Canvas c) {
+    _baseHuman(c, skinTone: const Color(0xFF8EDCEF), shirt: const Color(0xFF374D95), pants: const Color(0xFF1C2858));
+    c.drawOval(const Rect.fromLTWH(-25, -63, 50, 28), _fill(const Color(0x8859F1FF)));
+  }
+
+  void _commando(Canvas c) {
+    _baseHuman(c, shirt: const Color(0xFF617043), pants: const Color(0xFF39402E));
+    c.drawRect(const Rect.fromLTWH(-30, -71, 60, 12), _fill(const Color(0xFF3D492C)));
+    c.drawLine(const Offset(-26, -6), const Offset(26, 15), _line(const Color(0xFF201E18), 5));
+  }
+
+  void _voidKnight(Canvas c) {
+    _baseHuman(c, skinTone: const Color(0xFF4C3564), shirt: const Color(0xFF3D245A), pants: const Color(0xFF1D1530), smile: false);
+    c.drawCircle(const Offset(0, -43), 32, _line(const Color(0xFFA65EFF), 6));
+    c.drawCircle(const Offset(-10, -45), 3, _fill(const Color(0xFFFF4358)));
+    c.drawCircle(const Offset(10, -45), 3, _fill(const Color(0xFFFF4358)));
+  }
+
+  void _boss(Canvas c) {
+    _baseHuman(c, shirt: const Color(0xFF20242B), pants: const Color(0xFF111318));
+    c.drawPath(Path()..moveTo(-8, -20)..lineTo(0, 6)..lineTo(8, -20)..close(), _fill(const Color(0xFFE83A3A)));
+  }
+
+  void _crystal(Canvas c) {
+    _baseHuman(c, skinTone: const Color(0xFF99F2FF), shirt: const Color(0xFF9D6AF0), pants: const Color(0xFF514589));
+    final gem = Path()..moveTo(0, -78)..lineTo(20, -52)..lineTo(0, -28)..lineTo(-20, -52)..close();
+    c.drawPath(gem, _fill(const Color(0xAA65F3FF)));
+    c.drawPath(gem, _line(const Color(0xFFDBFCFF), 2));
+  }
+
+  void _engineer(Canvas c) {
+    _baseHuman(c, shirt: const Color(0xFFC78637), pants: const Color(0xFF4E5A67));
+    c.drawRect(const Rect.fromLTWH(-26, -72, 52, 10), _fill(const Color(0xFFFFA52D)));
+    c.drawCircle(const Offset(0, -66), 8, _fill(const Color(0xFFC46E20)));
+  }
+
+  void _caveman(Canvas c) {
+    _baseHuman(c, shirt: const Color(0xFF8D5B35), pants: const Color(0xFF684326));
+    _hair(c, const Color(0xFF4D2F1D), y: -68);
+    c.drawLine(const Offset(-24, -12), const Offset(24, 13), _line(const Color(0xFFE5C190), 4));
+  }
+
+  void _gubi(Canvas c) {
+    _baseHuman(c, shirt: const Color(0xFF6EBD43), pants: const Color(0xFF303139));
+    _hair(c, const Color(0xFFFF8C2F), y: -69);
+  }
+
+  void _street(Canvas c) {
+    _baseHuman(c, shirt: const Color(0xFFF1F2F5), pants: const Color(0xFF404652));
+    c.drawArc(const Rect.fromLTWH(-33, -76, 66, 50), math.pi, math.pi, true, _fill(const Color(0xFFE8E9EE)));
+  }
+
+  void _princess(Canvas c) {
+    _feet(c, const Color(0xFFFFB0CF));
+    final dress = Path()
+      ..moveTo(-22, -12)
+      ..lineTo(-36, 43)
+      ..quadraticBezierTo(0, 55, 36, 43)
+      ..lineTo(22, -12)
       ..close();
-    c.drawPath(cape, _fill(const Color(0xFFB11933)));
-    c.drawPath(cape, _stroke());
-
-    _drawFeet(c, const Color(0xFF9A2544));
-    _drawArms(c, const Color(0xFFFFA33B), y: 2);
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-26, -8, 52, 45),
-        const Radius.circular(14),
-      ),
-      _fill(const Color(0xFFD43B72)),
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-26, -8, 52, 45),
-        const Radius.circular(14),
-      ),
-      _stroke(),
-    );
-    c.drawCircle(const Offset(0, 6), 5, _fill(const Color(0xFFFFD34E)));
-
-    _drawHead(c, const Color(0xFFFFA33B), centerY: -29);
-    _drawFace(c, const Offset(0, -29), sleepy: false, smiling: true);
-
-    canvasCrown(c, y: -58 + crownLift);
+    c.drawPath(dress, _fill(const Color(0xFFFF8FC1)));
+    c.drawPath(dress, _line());
+    _head(c, const Color(0xFFF5B985), -43);
+    _hair(c, const Color(0xFFF6D24C), y: -68);
+    _face(c, centerY: -43, skinTone: const Color(0xFFF5B985), smile: true);
+    _drawCrown(c, -78);
   }
 
-  void canvasCrown(Canvas c, {required double y}) {
-    final crown = Path()
-      ..moveTo(-21, y + 13)
-      ..lineTo(-18, y - 2)
-      ..lineTo(-8, y + 7)
-      ..lineTo(0, y - 7)
-      ..lineTo(8, y + 7)
-      ..lineTo(18, y - 2)
-      ..lineTo(21, y + 13)
-      ..close();
-    c.drawPath(crown, _fill(const Color(0xFFFFD43E)));
-    c.drawPath(crown, _stroke(const Color(0xFF7B4B00)));
-    c.drawCircle(Offset(0, y + 7), 2.5, _fill(const Color(0xFFE84662)));
-  }
-
-  void _drawHotWheels(Canvas c) {
-    _drawFeet(c, const Color(0xFFE8EDF2));
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-23, 17, 46, 22),
-        const Radius.circular(7),
-      ),
-      _fill(const Color(0xFF17191F)),
-    );
-    _drawArms(c, const Color(0xFFF2B38C), y: 2);
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-26, -8, 52, 31),
-        const Radius.circular(12),
-      ),
-      _fill(const Color(0xFF55D6E9)),
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-26, -8, 52, 31),
-        const Radius.circular(12),
-      ),
-      _stroke(),
-    );
-    _drawTinyText(c, 'HOT\nWHEELS', const Offset(0, 7), Colors.black87, 7.2);
-
-    _drawHead(c, const Color(0xFFF2B38C), centerY: -31);
-    final hair = Path()
-      ..moveTo(-27, -37)
-      ..quadraticBezierTo(-20, -60, -7, -50)
-      ..quadraticBezierTo(1, -62, 8, -50)
-      ..quadraticBezierTo(21, -58, 27, -38)
-      ..lineTo(25, -30)
-      ..quadraticBezierTo(10, -40, -2, -34)
-      ..quadraticBezierTo(-16, -42, -27, -31)
-      ..close();
-    c.drawPath(hair, _fill(const Color(0xFF5B3527)));
-    c.drawPath(hair, _stroke());
-    _drawFace(c, const Offset(0, -31), sleepy: false, smiling: true);
-  }
-
-  void _drawHacker(Canvas c) {
-    _drawFeet(c, const Color(0xFF0A0B0F));
-    final hoodie = RRect.fromRectAndRadius(
-      const Rect.fromLTWH(-29, -17, 58, 56),
-      const Radius.circular(20),
-    );
-    c.drawRRect(hoodie, _fill(const Color(0xFF11131A)));
-    c.drawRRect(hoodie, _stroke(const Color(0xFF06070A)));
-    c.drawLine(const Offset(-18, 10), const Offset(18, 10), _stroke(const Color(0xFF48FF85))..strokeWidth = 2.2);
-    c.drawLine(const Offset(-16, 19), const Offset(13, 25), _stroke(const Color(0xFF8B4DFF))..strokeWidth = 2.1);
-    c.drawCircle(const Offset(0, -23), 28, _fill(const Color(0xFF090A0E)));
-    c.drawCircle(const Offset(0, -23), 28, _stroke(const Color(0xFF171B22)));
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-19, -31, 14, 7),
-        const Radius.circular(2),
-      ),
-      _fill(const Color(0xFF4CFF85)),
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(5, -31, 14, 7),
-        const Radius.circular(2),
-      ),
-      _fill(const Color(0xFFAF69FF)),
-    );
-    c.drawRect(const Rect.fromLTWH(-11, -12, 22, 3), _fill(const Color(0xFF26303A)));
-  }
-
-  void _drawFener(Canvas c) {
-    _drawFeet(c, const Color(0xFFFFD43B));
-    _drawArms(c, const Color(0xFFFF8C2D), y: 2);
-    final shirt = RRect.fromRectAndRadius(
-      const Rect.fromLTWH(-26, -9, 52, 46),
-      const Radius.circular(14),
-    );
-    c.drawRRect(shirt, _fill(const Color(0xFFFFDA3E)));
-    c.save();
-    c.clipRRect(shirt);
-    for (var x = -21.0; x < 24; x += 12) {
-      c.drawRect(Rect.fromLTWH(x, -12, 6, 52), _fill(const Color(0xFF173A76)));
+  void _football(Canvas c, Color a, Color b) {
+    _baseHuman(c, shirt: a, pants: const Color(0xFF202631));
+    for (var x = -26.0; x < 27; x += 13) {
+      c.drawRect(Rect.fromLTWH(x, -18, 7, 39), _fill(b));
     }
-    c.restore();
-    c.drawRRect(shirt, _stroke());
-    _drawHead(c, const Color(0xFFFF8C2D), centerY: -30);
-    _drawFace(c, const Offset(0, -30), sleepy: true);
-
-    final headphones = _stroke(const Color(0xFF182B55))..strokeWidth = 6;
-    c.drawArc(const Rect.fromLTWH(-30, -58, 60, 52), math.pi, math.pi, false, headphones);
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-34, -38, 10, 23),
-        const Radius.circular(5),
-      ),
-      _fill(const Color(0xFF173A76)),
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(24, -38, 10, 23),
-        const Radius.circular(5),
-      ),
-      _fill(const Color(0xFF173A76)),
-    );
+    c.drawCircle(const Offset(0, 4), 8, _fill(Colors.white.withValues(alpha: 0.85)));
   }
 
-  void _drawHead(Canvas c, Color color, {required double centerY}) {
-    c.drawCircle(Offset(0, centerY), 28, _fill(color));
-    c.drawCircle(Offset(0, centerY), 28, _stroke());
-  }
-
-  void _drawFace(
-    Canvas c,
-    Offset center, {
-    required bool sleepy,
-    bool eyePatch = false,
-    bool smiling = false,
-  }) {
-    final eye = _fill(const Color(0xFF20191B));
-    final left = center + const Offset(-9, -2);
-    final right = center + const Offset(9, -2);
-    c.drawOval(
-      Rect.fromCenter(
-        center: left,
-        width: sleepy ? 8 : 6,
-        height: sleepy ? 4 : 8,
-      ),
-      eye,
-    );
-    if (eyePatch) {
-      c.drawCircle(right, 7, _fill(const Color(0xFF111115)));
-      c.drawLine(center + const Offset(1, -12), center + const Offset(17, 2), _stroke(const Color(0xFF111115))..strokeWidth = 2.5);
-    } else {
-      c.drawOval(
-        Rect.fromCenter(
-          center: right,
-          width: sleepy ? 8 : 6,
-          height: sleepy ? 4 : 8,
-        ),
-        eye,
-      );
-    }
-
-    final mouth = _stroke(const Color(0xFF20191B))..strokeWidth = 2.4;
-    if (smiling) {
-      final p = Path()
-        ..moveTo(center.dx - 7, center.dy + 10)
-        ..quadraticBezierTo(center.dx, center.dy + 16, center.dx + 8, center.dy + 9);
-      c.drawPath(p, mouth);
-    } else {
-      c.drawLine(center + const Offset(-6, 11), center + const Offset(6, 11), mouth);
+  void _hacker(Canvas c) {
+    _baseHuman(c, skinTone: const Color(0xFF1B211C), shirt: const Color(0xFF111613), pants: const Color(0xFF0A0D0B), smile: false);
+    c.drawArc(const Rect.fromLTWH(-34, -78, 68, 58), math.pi, math.pi, true, _fill(const Color(0xFF101813)));
+    c.drawCircle(const Offset(-10, -45), 3, _fill(const Color(0xFF4AFF79)));
+    c.drawCircle(const Offset(10, -45), 3, _fill(const Color(0xFF4AFF79)));
+    c.drawRect(const Rect.fromLTWH(-23, 2, 46, 13), _fill(const Color(0xFF17351F)));
+    for (var i = 0; i < 5; i++) {
+      c.drawRect(Rect.fromLTWH(-19 + i * 9, 6, 4, 4), _fill(const Color(0xFF4AFF79)));
     }
   }
 
-  void _drawFeet(Canvas c, Color color) {
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-22, 31, 18, 16),
-        const Radius.circular(7),
-      ),
-      _fill(color),
-    );
-    c.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(4, 31, 18, 16),
-        const Radius.circular(7),
-      ),
-      _fill(color),
-    );
+  void _wizard(Canvas c) {
+    _baseHuman(c, skinTone: const Color(0xFFD2A06D), shirt: const Color(0xFF655090), pants: const Color(0xFF393052));
+    final hat = Path()
+      ..moveTo(-32, -64)
+      ..lineTo(2, -108)
+      ..lineTo(13, -69)
+      ..lineTo(34, -61)
+      ..quadraticBezierTo(0, -50, -32, -64)
+      ..close();
+    c.drawPath(hat, _fill(const Color(0xFF514171)));
+    c.drawPath(hat, _line());
+    c.drawLine(const Offset(31, 21), const Offset(43, -36), _line(const Color(0xFF6C4825), 5));
+    c.drawCircle(const Offset(43, -41), 7, _fill(const Color(0xFF55CFFF)));
   }
 
-  void _drawArms(Canvas c, Color color, {required double y}) {
-    c.drawCircle(Offset(-30, y), 9, _fill(color));
-    c.drawCircle(Offset(30, y), 9, _fill(color));
-    c.drawCircle(Offset(-30, y), 9, _stroke());
-    c.drawCircle(Offset(30, y), 9, _stroke());
+  void _frost(Canvas c, int slot) {
+    final t = (slot - 25) / 4.0;
+    final accent = Color.lerp(const Color(0xFFB8EEFF), const Color(0xFF5EBDF0), t)!;
+    _baseHuman(c, skinTone: const Color(0xFFD7F6FF), shirt: accent, pants: const Color(0xFF53758D));
+    c.drawCircle(const Offset(0, -43), 33, _line(Colors.white.withValues(alpha: 0.9), 5));
   }
 
-  void _drawTinyText(
-    Canvas c,
-    String text,
-    Offset center,
-    Color color,
-    double fontSize,
-  ) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          color: color,
-          fontSize: fontSize,
-          height: .82,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-      textAlign: TextAlign.center,
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: 36);
-    painter.paint(
-      c,
-      Offset(center.dx - painter.width / 2, center.dy - painter.height / 2),
-    );
+  void _frostBot(Canvas c) {
+    _feet(c, const Color(0xFF385871));
+    c.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(-30, -24, 60, 68), const Radius.circular(16)), _fill(const Color(0xFF70CFF5)));
+    c.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(-30, -24, 60, 68), const Radius.circular(16)), _line(const Color(0xFF275372), 4));
+    c.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(-31, -72, 62, 50), const Radius.circular(17)), _fill(const Color(0xFFD7F7FF)));
+    c.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(-31, -72, 62, 50), const Radius.circular(17)), _line(const Color(0xFF275372), 4));
+    c.drawCircle(const Offset(-11, -48), 5, _fill(const Color(0xFF245D86)));
+    c.drawCircle(const Offset(11, -48), 5, _fill(const Color(0xFF245D86)));
   }
 
   @override
-  bool shouldRepaint(covariant _SkyJumperSkinPainter oldDelegate) {
-    return oldDelegate.skin.id != skin.id ||
-        oldDelegate.skin.accent != skin.accent ||
-        oldDelegate.frame != frame;
-  }
+  bool shouldRepaint(covariant _SkinPainter oldDelegate) =>
+      oldDelegate.skin.id != skin.id || oldDelegate.frame != frame;
 }
 
 class _Pose {
-  const _Pose({
-    required this.dy,
-    required this.scaleY,
-    this.crownLift = 0,
-  });
+  const _Pose({required this.y, required this.scaleY, required this.crownLift});
 
-  final double dy;
+  final double y;
   final double scaleY;
   final double crownLift;
 }
