@@ -1,11 +1,23 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:skyjumper/game/data/skin_catalog.dart';
 
+class DailyRewardResult {
+  const DailyRewardResult({required this.gold, required this.gems, required this.day});
+
+  final int gold;
+  final int gems;
+  final int day;
+}
+
 class PlayerProgressRepository {
   PlayerProgressRepository._(
     this._prefs, {
     required this.bestScore,
     required this.gold,
+    required this.gems,
+    required this.seasonStars,
+    required this.dailyStreak,
+    required this.lastDailyClaimDay,
     required this.soundEnabled,
     required this.vibrationEnabled,
     required this.cameraShakeEnabled,
@@ -16,6 +28,10 @@ class PlayerProgressRepository {
 
   static const _bestScoreKey = 'best_score';
   static const _goldKey = 'gold';
+  static const _gemsKey = 'gems';
+  static const _seasonStarsKey = 'season_stars';
+  static const _dailyStreakKey = 'daily_streak';
+  static const _lastDailyClaimDayKey = 'last_daily_claim_day';
   static const _soundEnabledKey = 'sound_enabled';
   static const _vibrationEnabledKey = 'vibration_enabled';
   static const _cameraShakeEnabledKey = 'camera_shake_enabled';
@@ -23,10 +39,17 @@ class PlayerProgressRepository {
   static const _ownedSkinsKey = 'owned_skin_ids';
   static const _equippedSkinKey = 'equipped_skin_id';
 
+  static const List<int> dailyGoldRewards = <int>[50, 100, 150, 200, 250, 350, 500];
+  static const List<int> dailyGemRewards = <int>[0, 0, 5, 0, 10, 0, 20];
+
   final SharedPreferences _prefs;
 
   int bestScore;
   int gold;
+  int gems;
+  int seasonStars;
+  int dailyStreak;
+  String? lastDailyClaimDay;
   bool soundEnabled;
   bool vibrationEnabled;
   bool cameraShakeEnabled;
@@ -38,9 +61,6 @@ class PlayerProgressRepository {
 
   static Future<PlayerProgressRepository> load() async {
     final prefs = await SharedPreferences.getInstance();
-    final bestScore = _safeNonNegativeInt(prefs.get(_bestScoreKey));
-    final gold = _safeNonNegativeInt(prefs.get(_goldKey));
-
     final owned = <String>{
       ...defaultOwnedSkinIds,
       ...?prefs.getStringList(_ownedSkinsKey),
@@ -52,8 +72,12 @@ class PlayerProgressRepository {
 
     return PlayerProgressRepository._(
       prefs,
-      bestScore: bestScore,
-      gold: gold,
+      bestScore: _safeNonNegativeInt(prefs.get(_bestScoreKey)),
+      gold: _safeNonNegativeInt(prefs.get(_goldKey)),
+      gems: _safeNonNegativeInt(prefs.get(_gemsKey)),
+      seasonStars: _safeNonNegativeInt(prefs.get(_seasonStarsKey)),
+      dailyStreak: _safeNonNegativeInt(prefs.get(_dailyStreakKey)).clamp(0, 7).toInt(),
+      lastDailyClaimDay: prefs.getString(_lastDailyClaimDayKey),
       soundEnabled: prefs.getBool(_soundEnabledKey) ?? true,
       vibrationEnabled: prefs.getBool(_vibrationEnabledKey) ?? true,
       cameraShakeEnabled: prefs.getBool(_cameraShakeEnabledKey) ?? true,
@@ -66,18 +90,14 @@ class PlayerProgressRepository {
   bool ownsSkin(String id) => ownedSkinIds.contains(id);
 
   Future<void> commitRun({required int score, required int runGold}) async {
-    var dirtyBest = false;
-    var dirtyGold = false;
     if (score > bestScore) {
       bestScore = score;
-      dirtyBest = true;
+      await _prefs.setInt(_bestScoreKey, bestScore);
     }
     if (runGold > 0) {
       gold += runGold;
-      dirtyGold = true;
+      await _prefs.setInt(_goldKey, gold);
     }
-    if (dirtyBest) await _prefs.setInt(_bestScoreKey, bestScore);
-    if (dirtyGold) await _prefs.setInt(_goldKey, gold);
   }
 
   Future<bool> purchaseSkin(SkinDefinition skin) async {
@@ -91,7 +111,7 @@ class PlayerProgressRepository {
 
     gold -= skin.price;
     ownedSkinIds.add(skin.id);
-    await Future.wait([
+    await Future.wait(<Future<bool>>[
       _prefs.setInt(_goldKey, gold),
       _saveOwnedSkins(),
     ]);
@@ -99,11 +119,44 @@ class PlayerProgressRepository {
   }
 
   Future<bool> equipSkin(String id) async {
-    if (!ownsSkin(id)) return false;
-    if (!kSkinCatalog.any((skin) => skin.id == id)) return false;
+    if (!ownsSkin(id) || !kSkinCatalog.any((skin) => skin.id == id)) return false;
     equippedSkinId = id;
     await _prefs.setString(_equippedSkinKey, id);
     return true;
+  }
+
+  bool canClaimDaily([DateTime? now]) {
+    final today = _dayKey(now ?? DateTime.now());
+    return lastDailyClaimDay != today;
+  }
+
+  Future<DailyRewardResult?> claimDailyReward([DateTime? now]) async {
+    final current = now ?? DateTime.now();
+    final today = _dayKey(current);
+    if (lastDailyClaimDay == today) return null;
+
+    final yesterday = _dayKey(current.subtract(const Duration(days: 1)));
+    if (lastDailyClaimDay == yesterday) {
+      dailyStreak = dailyStreak >= 7 ? 1 : dailyStreak + 1;
+    } else {
+      dailyStreak = 1;
+    }
+
+    final index = (dailyStreak - 1).clamp(0, 6).toInt();
+    final rewardGold = dailyGoldRewards[index];
+    final rewardGems = dailyGemRewards[index];
+    gold += rewardGold;
+    gems += rewardGems;
+    lastDailyClaimDay = today;
+
+    await Future.wait(<Future<bool>>[
+      _prefs.setInt(_goldKey, gold),
+      _prefs.setInt(_gemsKey, gems),
+      _prefs.setInt(_dailyStreakKey, dailyStreak),
+      _prefs.setString(_lastDailyClaimDayKey, today),
+    ]);
+
+    return DailyRewardResult(gold: rewardGold, gems: rewardGems, day: dailyStreak);
   }
 
   Future<void> setSoundEnabled(bool enabled) async {
@@ -126,9 +179,15 @@ class PlayerProgressRepository {
     await _prefs.setBool(_reducedEffectsKey, enabled);
   }
 
-  Future<void> _saveOwnedSkins() async {
+  Future<bool> _saveOwnedSkins() async {
     final ids = ownedSkinIds.toList()..sort();
-    await _prefs.setStringList(_ownedSkinsKey, ids);
+    return _prefs.setStringList(_ownedSkinsKey, ids);
+  }
+
+  static String _dayKey(DateTime date) {
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '${date.year}-$month-$day';
   }
 
   static int _safeNonNegativeInt(Object? value) {
