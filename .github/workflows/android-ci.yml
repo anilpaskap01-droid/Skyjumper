@@ -13,19 +13,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Restore embedded original APK skin atlases
+      - name: Verify embedded original APK skin atlas
         run: |
           set -euo pipefail
-          rm -rf assets/original_skins
-          mkdir -p assets/original_skins
-          cat assets/original_skin_b64/front_idle_*.b64 | tr -d '\n\r ' | base64 -d > assets/original_skins/front_idle_atlas.webp
-          cat assets/original_skin_b64/front_jump_*.b64 | tr -d '\n\r ' | base64 -d > assets/original_skins/front_jump_atlas.webp
-          test -s assets/original_skins/front_idle_atlas.webp
-          test -s assets/original_skins/front_jump_atlas.webp
-          file assets/original_skins/front_idle_atlas.webp | grep -qi webp
-          file assets/original_skins/front_jump_atlas.webp | grep -qi webp
+          test -s assets/original_skin_atlas.webp
+          file assets/original_skin_atlas.webp | grep -qi webp
           if grep -RniE 'CustomPaint\(|CustomPainter' lib/widgets/skin_avatar.dart; then
             echo 'Procedural skin renderer found; only original APK pixels are allowed.'
+            exit 1
+          fi
+          if grep -RniE 'Image\.network|NetworkImage' lib/widgets/skin_avatar.dart lib/features/shop; then
+            echo 'Network skin renderer found; skin art must be bundled from the original APK.'
             exit 1
           fi
 
@@ -62,6 +60,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: skyjumper-original-skins-unlimited-release
+          name: skyjumper-real-skins-visible-release
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
