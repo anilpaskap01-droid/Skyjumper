@@ -13,13 +13,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify embedded original skin atlas
+      - name: Restore embedded original APK skin atlases
         run: |
           set -euo pipefail
-          test -s assets/original_skin_atlas.webp
-          file assets/original_skin_atlas.webp | grep -qi webp
+          rm -rf assets/original_skins
+          mkdir -p assets/original_skins
+          cat assets/original_skin_b64/front_idle_*.b64 | tr -d '\n\r ' | base64 -d > assets/original_skins/front_idle_atlas.webp
+          cat assets/original_skin_b64/front_jump_*.b64 | tr -d '\n\r ' | base64 -d > assets/original_skins/front_jump_atlas.webp
+          test -s assets/original_skins/front_idle_atlas.webp
+          test -s assets/original_skins/front_jump_atlas.webp
+          file assets/original_skins/front_idle_atlas.webp | grep -qi webp
+          file assets/original_skins/front_jump_atlas.webp | grep -qi webp
           if grep -RniE 'CustomPaint\(|CustomPainter' lib/widgets/skin_avatar.dart; then
-            echo 'Procedural skin renderer found; only supplied APK pixels are allowed.'
+            echo 'Procedural skin renderer found; only original APK pixels are allowed.'
             exit 1
           fi
 
