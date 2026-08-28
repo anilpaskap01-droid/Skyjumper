@@ -1,0 +1,20 @@
+SKYJUMPER - FIREBASE'SIZ GOOGLE CLIENT ID KURULUMU
+
+Bu branch Firebase kullanmaz. google-services.json, firebase_core, firebase_auth veya Firebase proje kimliği gerekmez.
+
+1) Google Cloud Console'da OAuth 2.0 istemcilerini oluştur:
+   - Android OAuth istemcisi: uygulamanın package name + imza SHA-1/SHA-256 bilgileriyle eşleşmelidir.
+   - Web OAuth istemcisi: bu projenin GOOGLE_CLIENT_ID değeri olarak kullanılır.
+
+2) APK build örneği:
+   flutter pub get
+   flutter build apk --release --dart-define=GOOGLE_CLIENT_ID=1234567890-abcdef.apps.googleusercontent.com
+
+3) GitHub Actions kullanıyorsan repository variable olarak GOOGLE_CLIENT_ID ekleyebilirsin. Workflow bu değeri build sırasında dart-define olarak geçirir.
+
+4) Client ID verilmezse oyun açılır ve normal oyun özellikleri çalışır; Ayarlar > Google Hesabı giriş düğmesi kullanıcıya Client ID'nin tanımlı olmadığını bildirir.
+
+NOT:
+- Bu dosyada gerçek Client ID bulunmaz çünkü kullanıcı tarafından gerçek OAuth Client ID sağlanmamıştır.
+- Client ID bir parola değildir, fakat doğru Google Cloud projesi/package/imza yapılandırması olmadan Google giriş çalışmaz.
+- Firebase bağımlılığı yoktur.
