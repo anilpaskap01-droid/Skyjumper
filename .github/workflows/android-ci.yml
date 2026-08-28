@@ -2,7 +2,7 @@ name: SkyJumper Android CI
 
 on:
   push:
-    branches: [main, skyjumper-local-complete]
+    branches: [main, skyjumper-local-complete, firebase-free-google-client-id]
   workflow_dispatch:
 
 jobs:
@@ -82,10 +82,10 @@ jobs:
       - name: Resolve dependencies
         run: flutter pub get
 
-      - name: Verify forbidden SDK dependencies are absent
+      - name: Verify Firebase and forbidden SDK dependencies are absent
         run: |
-          if grep -RniE 'package:(firebase|google_mobile_ads|in_app_purchase)|firebase_core:|firebase_auth:|cloud_firestore:|google_mobile_ads:|in_app_purchase:|purchases_flutter:' lib pubspec.yaml; then
-            echo 'Forbidden SDK dependency reference found.'
+          if grep -RniE 'package:(firebase|google_mobile_ads|in_app_purchase)|firebase_core:|firebase_auth:|cloud_firestore:|google_mobile_ads:|in_app_purchase:|purchases_flutter:|google-services\.json' lib pubspec.yaml android 2>/dev/null; then
+            echo 'Forbidden Firebase/SDK dependency reference found.'
             exit 1
           fi
 
@@ -96,11 +96,27 @@ jobs:
         run: flutter test
 
       - name: Build release APK
-        run: flutter build apk --release
+        env:
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+        run: flutter build apk --release --dart-define=GOOGLE_CLIENT_ID="$GOOGLE_CLIENT_ID"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: skyjumper-private-real-assets-base
+          name: skyjumper-firebase-free-google-client-id-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
+      - name: Upload Firebase-free source ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: skyjumper-firebase-free-google-client-id-source
+          path: |
+            .github/
+            assets/
+            lib/
+            test/
+            pubspec.yaml
+            GOOGLE_CLIENT_ID_SETUP.txt
+          include-hidden-files: true
           if-no-files-found: error
