@@ -49,6 +49,18 @@ jobs:
           flutter create --platforms=android --org com.hantro --project-name skyjumper .
           rm -f test/widget_test.dart
 
+      - name: Configure private Android identity
+        run: |
+          set -euo pipefail
+          if [ -f android/app/build.gradle.kts ]; then
+            sed -i 's/applicationId = "com.hantro.skyjumper"/applicationId = "com.hantro.skyjumper.private"/' android/app/build.gradle.kts
+          elif [ -f android/app/build.gradle ]; then
+            sed -i "s/applicationId ['\"]com.hantro.skyjumper['\"]/applicationId 'com.hantro.skyjumper.private'/" android/app/build.gradle
+          fi
+          sed -i 's/android:label="skyjumper"/android:label="SkyJumper Private"/' android/app/src/main/AndroidManifest.xml
+          grep -R "com.hantro.skyjumper.private" android/app/build.gradle* || (echo 'Private applicationId not applied' && exit 1)
+          grep -q 'android:label="SkyJumper Private"' android/app/src/main/AndroidManifest.xml || (echo 'Private app label not applied' && exit 1)
+
       - name: Resolve dependencies
         run: flutter pub get
 
@@ -71,6 +83,6 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: skyjumper-phone-hotwheels-release
+          name: skyjumper-private-phone-hotwheels-release
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
