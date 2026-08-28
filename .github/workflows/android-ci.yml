@@ -13,12 +13,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Restore custom photo skins
+      - name: Verify custom photo skins
         run: |
           set -euo pipefail
-          mkdir -p assets/custom_skins
-          base64 -d assets/custom_skin_b64/custom_slot_29_front_idle.b64 > assets/custom_skins/custom_slot_29.webp
-          base64 -d assets/custom_skin_b64/custom_slot_30_front_idle.b64 > assets/custom_skins/custom_slot_30.webp
           test -s assets/custom_skins/custom_slot_29.webp
           test -s assets/custom_skins/custom_slot_30.webp
           file assets/custom_skins/custom_slot_29.webp | grep -qi webp
