@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:skyjumper/game/data/custom_photo_skin_assets.dart';
 import 'package:skyjumper/game/data/skin_catalog.dart';
 
 class SkinAvatar extends StatelessWidget {
@@ -65,10 +64,16 @@ class SkinAvatar extends StatelessWidget {
     return normalized >= 3 && normalized <= 12;
   }
 
+  String? get _customAsset => switch (skin.id) {
+        'custom_slot_29' => 'assets/custom_skins/custom_slot_29.webp',
+        'custom_slot_30' => 'assets/custom_skins/custom_slot_30.webp',
+        _ => null,
+      };
+
   @override
   Widget build(BuildContext context) {
-    final customBytes = customPhotoSkinBytes(skin.id, jumping: _jumping);
-    if (customBytes != null) {
+    final customAsset = _customAsset;
+    if (customAsset != null) {
       return FittedBox(
         fit: fit,
         alignment: Alignment.center,
@@ -80,13 +85,16 @@ class SkinAvatar extends StatelessWidget {
             child: Transform.scale(
               scaleX: _jumping ? 0.97 : 1,
               scaleY: _jumping ? 1.03 : 1,
-              child: Image.memory(
-                customBytes,
+              child: Image.asset(
+                customAsset,
                 width: 120,
                 height: 160,
                 fit: BoxFit.contain,
                 filterQuality: FilterQuality.high,
                 gaplessPlayback: true,
+                errorBuilder: (context, error, stackTrace) {
+                  return const SizedBox.shrink();
+                },
               ),
             ),
           ),
