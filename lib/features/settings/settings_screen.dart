@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:skyjumper/game/data/player_progress_repository.dart';
+import 'package:skyjumper/services/google_auth_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key, required this.progress});
@@ -11,9 +12,72 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  final GoogleAuthService _googleAuth = GoogleAuthService.instance;
+  String? _googleEmail;
+  String? _googleName;
+  bool _googleBusy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _restoreGoogleSession();
+  }
+
+  Future<void> _restoreGoogleSession() async {
+    final account = await _googleAuth.restoreSession();
+    if (!mounted || account == null) return;
+    setState(() {
+      _googleEmail = account.email;
+      _googleName = account.displayName;
+    });
+  }
+
+  Future<void> _signInGoogle() async {
+    if (!_googleAuth.isConfigured) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('GOOGLE_CLIENT_ID tanımlı değil. ZIP içindeki kurulum dosyasına bak.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _googleBusy = true);
+    try {
+      final account = await _googleAuth.signIn();
+      if (!mounted || account == null) return;
+      setState(() {
+        _googleEmail = account.email;
+        _googleName = account.displayName;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Google giriş hatası: $error')),
+      );
+    } finally {
+      if (mounted) setState(() => _googleBusy = false);
+    }
+  }
+
+  Future<void> _signOutGoogle() async {
+    setState(() => _googleBusy = true);
+    try {
+      await _googleAuth.signOut();
+      if (!mounted) return;
+      setState(() {
+        _googleEmail = null;
+        _googleName = null;
+      });
+    } finally {
+      if (mounted) setState(() => _googleBusy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final progress = widget.progress;
+    final googleSignedIn = _googleEmail != null;
     return Scaffold(
       backgroundColor: const Color(0xFF040A17),
       body: Stack(
@@ -97,7 +161,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           if (mounted) setState(() {});
                         },
                       ),
-                      const SizedBox(height: 12),
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 11),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0C1328),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF7AA7FF), width: 1.25),
+                        ),
+                        child: Row(
+                          children: <Widget>[
+                            const Icon(Icons.account_circle_rounded, color: Color(0xFF9AB7FF), size: 38),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    googleSignedIn ? (_googleName?.isNotEmpty == true ? _googleName! : 'GOOGLE HESABI') : 'GOOGLE HESABI',
+                                    style: const TextStyle(color: Color(0xFFB8C8FF), fontWeight: FontWeight.w900),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    googleSignedIn
+                                        ? _googleEmail!
+                                        : (_googleAuth.isConfigured ? 'Firebase olmadan Google ile giriş' : 'Client ID build sırasında verilecek'),
+                                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            TextButton(
+                              onPressed: _googleBusy ? null : (googleSignedIn ? _signOutGoogle : _signInGoogle),
+                              child: _googleBusy
+                                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                                  : Text(googleSignedIn ? 'ÇIKIŞ' : 'GİRİŞ'),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 1),
                       SizedBox(
                         width: double.infinity,
                         height: 50,
