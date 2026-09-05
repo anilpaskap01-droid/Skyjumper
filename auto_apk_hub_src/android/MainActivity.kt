@@ -26,9 +26,7 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
-                    "canInstallPackages" -> {
-                        result.success(canInstallPackages())
-                    }
+                    "canInstallPackages" -> result.success(canInstallPackages())
                     "openUnknownSources" -> {
                         openUnknownSourcesSettings()
                         result.success(true)
@@ -102,57 +100,68 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun installFile(file: File) {
-        val valid = packageManager.getPackageArchiveInfo(file.absolutePath, 0)
-        require(valid != null) { "Seçilen dosya Android tarafından geçerli APK olarak tanınmadı." }
-
+        require(packageManager.getPackageArchiveInfo(file.absolutePath, 0) != null) {
+            "Seçilen dosya Android tarafından geçerli APK olarak tanınmadı."
+        }
         val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
         launchPackageInstaller(uri)
     }
 
-    /**
-     * GitHub Actions artifact'ları ZIP olarak iner. Önce dosyanın doğrudan APK olup
-     * olmadığını PackageManager ile kontrol ederiz. APK değilse ZIP içindeki ilk gerçek
-     * .apk dosyasını güvenli şekilde cache'e çıkarır ve onu kurarız.
-     */
     private fun normalizeInstallableFile(source: File): File {
-        if (packageManager.getPackageArchiveInfo(source.absolutePath, 0) != null) {
-            return source
+        // APK uzantısı Android PackageManager için önemlidir. Kaynak farklı uzantıdaysa
+        // önce aynı baytları .apk adlı güvenli cache dosyasına kopyalayıp gerçek APK mı bak.
+        val directCandidate = if (source.name.lowercase().endsWith(".apk")) {
+            source
+        } else {
+            File(cacheDir, "candidate_${System.currentTimeMillis()}.apk").also { candidate ->
+                source.inputStream().use { input ->
+                    FileOutputStream(candidate).use { output -> input.copyTo(output, 64 * 1024) }
+                }
+            }
+        }
+
+        if (packageManager.getPackageArchiveInfo(directCandidate.absolutePath, 0) != null) {
+            return directCandidate
         }
 
         val extracted = File(cacheDir, "extracted_${System.currentTimeMillis()}.apk")
         if (extracted.exists()) extracted.delete()
 
-        ZipInputStream(source.inputStream().buffered()).use { zip ->
-            var entry = zip.nextEntry
-            while (entry != null) {
-                val safeName = entry.name.replace('\\', '/')
-                val isApk = !entry.isDirectory && safeName.lowercase().endsWith(".apk")
-                if (isApk) {
-                    FileOutputStream(extracted).use { output ->
-                        val buffer = ByteArray(64 * 1024)
-                        var total = 0L
-                        while (true) {
-                            val count = zip.read(buffer)
-                            if (count <= 0) break
-                            total += count
-                            require(total <= 800L * 1024L * 1024L) {
-                                "ZIP içindeki APK 800 MB sınırından büyük."
+        try {
+            ZipInputStream(source.inputStream().buffered()).use { zip ->
+                var entry = zip.nextEntry
+                while (entry != null) {
+                    val safeName = entry.name.replace('\\', '/')
+                    if (!entry.isDirectory && safeName.lowercase().endsWith(".apk")) {
+                        FileOutputStream(extracted).use { output ->
+                            val buffer = ByteArray(64 * 1024)
+                            var total = 0L
+                            while (true) {
+                                val count = zip.read(buffer)
+                                if (count <= 0) break
+                                total += count
+                                require(total <= 800L * 1024L * 1024L) {
+                                    "ZIP içindeki APK 800 MB sınırından büyük."
+                                }
+                                output.write(buffer, 0, count)
                             }
-                            output.write(buffer, 0, count)
                         }
+                        zip.closeEntry()
+                        break
                     }
                     zip.closeEntry()
-                    break
+                    entry = zip.nextEntry
                 }
-                zip.closeEntry()
-                entry = zip.nextEntry
+            }
+        } catch (_: Throwable) {
+            if (!extracted.exists()) {
+                throw IllegalArgumentException("Seçilen dosya geçerli APK değil.")
             }
         }
 
         require(extracted.exists() && extracted.length() > 4) {
             "Bu dosya APK değil ve ZIP içinde .apk bulunamadı."
         }
-
         require(packageManager.getPackageArchiveInfo(extracted.absolutePath, 0) != null) {
             "ZIP içindeki dosya geçerli bir Android APK'sı değil."
         }
@@ -195,7 +204,6 @@ class MainActivity : FlutterActivity() {
             openUnknownSourcesSettings()
             return
         }
-
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
             type = "*/*"
@@ -232,7 +240,8 @@ class MainActivity : FlutterActivity() {
                 return
             }
 
-            val source = File(cacheDir, "selected_${System.currentTimeMillis()}.bin")
+            val suffix = if (lowerName.endsWith(".zip")) ".zip" else ".apk"
+            val source = File(cacheDir, "selected_${System.currentTimeMillis()}$suffix")
             contentResolver.openInputStream(uri).use { input ->
                 requireNotNull(input) { "Seçilen dosya açılamadı." }
                 FileOutputStream(source).use { output ->
@@ -251,14 +260,9 @@ class MainActivity : FlutterActivity() {
             }
 
             require(source.length() > 4) { "Seçilen dosya boş veya geçersiz." }
-            val installable = normalizeInstallableFile(source)
-            installFile(installable)
+            installFile(normalizeInstallableFile(source))
         } catch (t: Throwable) {
-            Toast.makeText(
-                this,
-                t.message ?: "APK açılamadı.",
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(this, t.message ?: "APK açılamadı.", Toast.LENGTH_LONG).show()
         }
     }
 
