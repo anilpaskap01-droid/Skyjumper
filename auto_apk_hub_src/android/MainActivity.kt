@@ -13,6 +13,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 import java.io.FileOutputStream
+import java.util.zip.ZipInputStream
 
 class MainActivity : FlutterActivity() {
     private val channelName = "auto_apk_hub/native"
@@ -26,10 +27,7 @@ class MainActivity : FlutterActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "canInstallPackages" -> {
-                        val allowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                            packageManager.canRequestPackageInstalls()
-                        } else true
-                        result.success(allowed)
+                        result.success(canInstallPackages())
                     }
                     "openUnknownSources" -> {
                         openUnknownSourcesSettings()
@@ -100,17 +98,68 @@ class MainActivity : FlutterActivity() {
         }
         val file = File(path)
         require(file.exists() && file.isFile) { "APK dosyası bulunamadı." }
-        installFile(file)
+        installFile(normalizeInstallableFile(file))
     }
 
     private fun installFile(file: File) {
+        val valid = packageManager.getPackageArchiveInfo(file.absolutePath, 0)
+        require(valid != null) { "Seçilen dosya Android tarafından geçerli APK olarak tanınmadı." }
+
         val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
         launchPackageInstaller(uri)
     }
 
+    /**
+     * GitHub Actions artifact'ları ZIP olarak iner. Önce dosyanın doğrudan APK olup
+     * olmadığını PackageManager ile kontrol ederiz. APK değilse ZIP içindeki ilk gerçek
+     * .apk dosyasını güvenli şekilde cache'e çıkarır ve onu kurarız.
+     */
+    private fun normalizeInstallableFile(source: File): File {
+        if (packageManager.getPackageArchiveInfo(source.absolutePath, 0) != null) {
+            return source
+        }
+
+        val extracted = File(cacheDir, "extracted_${System.currentTimeMillis()}.apk")
+        if (extracted.exists()) extracted.delete()
+
+        ZipInputStream(source.inputStream().buffered()).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                val safeName = entry.name.replace('\\', '/')
+                val isApk = !entry.isDirectory && safeName.lowercase().endsWith(".apk")
+                if (isApk) {
+                    FileOutputStream(extracted).use { output ->
+                        val buffer = ByteArray(64 * 1024)
+                        var total = 0L
+                        while (true) {
+                            val count = zip.read(buffer)
+                            if (count <= 0) break
+                            total += count
+                            require(total <= 800L * 1024L * 1024L) {
+                                "ZIP içindeki APK 800 MB sınırından büyük."
+                            }
+                            output.write(buffer, 0, count)
+                        }
+                    }
+                    zip.closeEntry()
+                    break
+                }
+                zip.closeEntry()
+                entry = zip.nextEntry
+            }
+        }
+
+        require(extracted.exists() && extracted.length() > 4) {
+            "Bu dosya APK değil ve ZIP içinde .apk bulunamadı."
+        }
+
+        require(packageManager.getPackageArchiveInfo(extracted.absolutePath, 0) != null) {
+            "ZIP içindeki dosya geçerli bir Android APK'sı değil."
+        }
+        return extracted
+    }
+
     private fun launchPackageInstaller(uri: Uri) {
-        // ACTION_INSTALL_PACKAGE, Samsung/Android 16 paket yükleyicisinde ACTION_VIEW'dan
-        // daha güvenilir. ClipData da URI okuma izninin paket yükleyiciye taşınmasını sağlar.
         val installIntent = Intent(Intent.ACTION_INSTALL_PACKAGE).apply {
             data = uri
             clipData = ClipData.newRawUri("APK", uri)
@@ -131,7 +180,6 @@ class MainActivity : FlutterActivity() {
             return
         }
 
-        // Nadir cihazlarda ACTION_INSTALL_PACKAGE resolve olmazsa klasik VIEW fallback.
         val fallback = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, "application/vnd.android.package-archive")
             clipData = ClipData.newRawUri("APK", uri)
@@ -162,7 +210,7 @@ class MainActivity : FlutterActivity() {
             )
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        startActivityForResult(Intent.createChooser(intent, "APK dosyası seç"), pickApkRequest)
+        startActivityForResult(Intent.createChooser(intent, "APK veya APK içeren ZIP seç"), pickApkRequest)
     }
 
     @Deprecated("Deprecated in Android API; retained for broad Flutter compatibility")
@@ -173,34 +221,38 @@ class MainActivity : FlutterActivity() {
         val uri = data?.data ?: return
         try {
             val displayName = queryDisplayName(uri)
+            val lowerName = displayName.lowercase()
             val mime = contentResolver.getType(uri).orEmpty()
-            val looksLikeApk = displayName.lowercase().endsWith(".apk") ||
+            val supported = lowerName.endsWith(".apk") || lowerName.endsWith(".zip") ||
                 mime == "application/vnd.android.package-archive" ||
-                mime == "application/octet-stream" ||
-                mime == "application/zip"
+                mime == "application/octet-stream" || mime == "application/zip"
 
-            if (!looksLikeApk) {
-                Toast.makeText(this, "APK dosyası seçmelisin.", Toast.LENGTH_LONG).show()
+            if (!supported) {
+                Toast.makeText(this, "APK veya APK içeren ZIP seçmelisin.", Toast.LENGTH_LONG).show()
                 return
             }
 
-            val target = File(cacheDir, "selected_${System.currentTimeMillis()}.apk")
+            val source = File(cacheDir, "selected_${System.currentTimeMillis()}.bin")
             contentResolver.openInputStream(uri).use { input ->
                 requireNotNull(input) { "Seçilen dosya açılamadı." }
-                FileOutputStream(target).use { output -> input.copyTo(output, 64 * 1024) }
-            }
-
-            require(target.length() > 4) { "Seçilen APK boş veya geçersiz." }
-
-            // Basit ZIP/APK başlık kontrolü.
-            target.inputStream().use { input ->
-                val h = ByteArray(2)
-                require(input.read(h) == 2 && h[0] == 0x50.toByte() && h[1] == 0x4B.toByte()) {
-                    "Seçilen dosya geçerli bir APK değil."
+                FileOutputStream(source).use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var total = 0L
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count <= 0) break
+                        total += count
+                        require(total <= 900L * 1024L * 1024L) {
+                            "Seçilen dosya 900 MB sınırından büyük."
+                        }
+                        output.write(buffer, 0, count)
+                    }
                 }
             }
 
-            installFile(target)
+            require(source.length() > 4) { "Seçilen dosya boş veya geçersiz." }
+            val installable = normalizeInstallableFile(source)
+            installFile(installable)
         } catch (t: Throwable) {
             Toast.makeText(
                 this,
