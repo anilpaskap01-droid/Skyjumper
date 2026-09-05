@@ -1,0 +1,14 @@
+name: auto_apk_hub
+description: User-confirmed third-party APK installer utility.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.9.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
