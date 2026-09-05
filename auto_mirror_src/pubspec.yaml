@@ -1,0 +1,14 @@
+name: auto_mirror_parked
+description: Parked-mode phone screen mirror prototype for Android Auto.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.9.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  uses-material-design: true
