@@ -89,7 +89,11 @@ class ScreenCaptureService : Service() {
 
     private fun startProjection(resultCode: Int, resultData: Intent) {
         val manager = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        val p = manager.getMediaProjection(resultCode, resultData)
+        val p = manager.getMediaProjection(resultCode, resultData) ?: run {
+            FrameStore.clear()
+            stopSelf()
+            return
+        }
         projection = p
 
         workerThread = HandlerThread("AutoMirrorCapture").also { it.start() }
@@ -169,8 +173,9 @@ class ScreenCaptureService : Service() {
         virtualDisplay = null
         try { imageReader?.close() } catch (_: Throwable) {}
         imageReader = null
-        try { projection?.stop() } catch (_: Throwable) {}
+        val p = projection
         projection = null
+        try { p?.stop() } catch (_: Throwable) {}
         try { workerThread?.quitSafely() } catch (_: Throwable) {}
         workerThread = null
         workerHandler = null
